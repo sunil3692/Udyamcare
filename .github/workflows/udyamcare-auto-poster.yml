@@ -1,0 +1,32 @@
+name: UdyamCare Auto Poster
+
+on:
+  schedule:
+    - cron: "30 2 * * *"    # 8:00 AM IST - Registration
+    - cron: "30 6 * * *"    # 12:00 PM IST - Loan & Finance
+    - cron: "30 10 * * *"   # 4:00 PM IST - Business Idea
+    - cron: "30 14 * * *"   # 8:00 PM IST - Business Tips
+  workflow_dispatch:
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Determine post slot
+        id: slot
+        run: |
+          HOUR=$(date -u +%H)
+          case "$HOUR" in
+            02) echo "slot=registration" >> "$GITHUB_OUTPUT" ;;
+            06) echo "slot=loan" >> "$GITHUB_OUTPUT" ;;
+            10) echo "slot=idea" >> "$GITHUB_OUTPUT" ;;
+            14) echo "slot=tips" >> "$GITHUB_OUTPUT" ;;
+            *) exit 0 ;;
+          esac
+
+      - name: Publish UdyamCare Post
+        if: steps.slot.outputs.slot != ''
+        run: |
+          curl --fail-with-body -X POST \
+            "https://udyamcare-auto-poster.floot.app/_api/auto/${{ steps.slot.outputs.slot }}"
