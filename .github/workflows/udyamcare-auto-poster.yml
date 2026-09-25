@@ -32,12 +32,25 @@ jobs:
           else
             HOUR=$(date -u +%H)
 
+            # GitHub scheduled workflows can start late.
+            # Allow a 2-hour window so delayed triggers still
+            # publish the intended post category.
             case "$HOUR" in
-              02) echo "slot=registration" >> "$GITHUB_OUTPUT" ;;
-              06) echo "slot=loan" >> "$GITHUB_OUTPUT" ;;
-              10) echo "slot=idea" >> "$GITHUB_OUTPUT" ;;
-              14) echo "slot=tips" >> "$GITHUB_OUTPUT" ;;
-              *) echo "slot=" >> "$GITHUB_OUTPUT" ;;
+              02|03)
+                echo "slot=registration" >> "$GITHUB_OUTPUT"
+                ;;
+              06|07)
+                echo "slot=loan" >> "$GITHUB_OUTPUT"
+                ;;
+              10|11)
+                echo "slot=idea" >> "$GITHUB_OUTPUT"
+                ;;
+              14|15)
+                echo "slot=tips" >> "$GITHUB_OUTPUT"
+                ;;
+              *)
+                echo "slot=" >> "$GITHUB_OUTPUT"
+                ;;
             esac
           fi
 
