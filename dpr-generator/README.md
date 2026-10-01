@@ -1,6 +1,6 @@
 # UdyamCare — Project Report (DPR) Generator
 
-Thodi si details bharo aur bank-ready **Detailed Project Report (DPR)** ban jaati hai — PMEGP, MUDRA,
+Thodi si details bharo aur bank-ready **Detailed Project Report (DPR)** ban jaati hai — PMEGP, CM YUVA (UP), MUDRA,
 CGTMSE, Stand-Up India ya normal bank loan ke liye.
 
 ## Kaise chalayein
@@ -24,6 +24,11 @@ Balance sheet, Cash flow, Depreciation (WDV), Term-loan repayment schedule, DSCR
 ## Calculation rules (short)
 - **Scheme defaults:** PMEGP own contribution 10% (General) / 5% (special category); subsidy 15/25% (General
   urban/rural), 25/35% (special category urban/rural). MUDRA 10%, CGTMSE & Stand-Up 15%, others 20%.
+- **CM YUVA (UP):** own margin General 15%, OBC 12.5%, SC/ST/Divyang or aspirational district 10%;
+  margin money subsidy 10% of project cost (max ₹50,000); 100% interest subsidy for 4 years (shown as income);
+  loan 4 years incl. 6 months moratorium; warning if loan exceeds ₹5 lakh or age is outside 21–40.
+- **Fixed amounts:** term loan / WC loan / WC requirement can be entered as fixed by the bank; own contribution
+  then becomes the balance of the project cost.
 - **Term loan:** interest serviced during moratorium, then equal monthly principal instalments.
   PMEGP subsidy kept as TDR — no interest on that portion, adjusted against the loan after 3 years.
 - **Working capital:** operating-cycle method (stock, finished goods, debtors less creditors); bank finances

@@ -96,20 +96,32 @@
       <label>Scheme
         <select name="scheme">
           <option value="PMEGP">PMEGP (KVIC subsidy)</option>
+          <option value="CMYUVA">CM YUVA (Mukhyamantri Yuva Udyami, UP)</option>
           <option value="MUDRA">PM MUDRA Yojana</option>
           <option value="CGTMSE">CGTMSE / MSME Term Loan</option>
           <option value="STANDUP">Stand-Up India</option>
           <option value="OTHER">Other / State scheme</option>
         </select>
       </label>
+      <label>Aspirational / backward district?
+        <select name="aspirational"><option value="No">No</option><option value="Yes">Yes</option></select>
+        <small>CM YUVA: Yes par margin 10%</small>
+      </label>
       <label>Bank name<input name="bankName"></label>
       <label>Branch<input name="bankBranch"></label>
       <label>Own contribution (%)<input name="ownPct" type="number" step="0.1" min="0" max="100"><small>Scheme select karne par auto-fill</small></label>
-      <label>Subsidy / margin money (%)<input name="subsidyPct" type="number" step="0.1" min="0" max="100"><small>PMEGP: auto as per category &amp; area</small></label>
+      <label>Subsidy / margin money (%)<input name="subsidyPct" type="number" step="0.1" min="0" max="100"><small>PMEGP / CM YUVA: auto as per category &amp; area</small></label>
       <label>Term loan interest (% p.a.)<input name="tlRate" type="number" step="0.05" value="10.5"></label>
       <label>Working capital (CC) interest (% p.a.)<input name="wcRate" type="number" step="0.05" value="11"></label>
       <label>Repayment period (years)<input name="tenureYears" type="number" min="1" max="15" value="7"></label>
       <label>Moratorium (months)<input name="moratorium" type="number" min="0" max="36" value="6"></label>
+    </div>
+    <h4>Bank ke fixed amount (optional)</h4>
+    <p class="hint">Agar bank ne loan amount pehle se tay kar diya hai to yahan bharein. Tab own contribution = project cost − dono loan, aur upar wala own % ignore hoga.</p>
+    <div class="grid">
+      <label>Term loan amount (₹)<input name="termLoanAmt" type="number" min="0"></label>
+      <label>Working capital loan amount (₹)<input name="wcLoanAmt" type="number" min="0"></label>
+      <label>Working capital requirement (₹)<input name="wcOverride" type="number" min="0"><small>Khali chhodenge to stock/debtor days se nikalega</small></label>
     </div>
   </details>
 

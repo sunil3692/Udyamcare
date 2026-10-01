@@ -61,8 +61,10 @@
     var s = DPRCalc.schemeDefaults(d);
     form.elements.ownPct.value = s.ownPct;
     form.elements.subsidyPct.value = s.subsidyPct;
+    if (s.tenureYears) form.elements.tenureYears.value = s.tenureYears;
+    if (s.moratorium !== undefined) form.elements.moratorium.value = s.moratorium;
   }
-  ['scheme', 'category', 'gender', 'area'].forEach(function (n) {
+  ['scheme', 'category', 'gender', 'area', 'aspirational'].forEach(function (n) {
     form.elements[n].addEventListener('change', applySchemeDefaults);
   });
   form.elements.activity.addEventListener('change', function () {

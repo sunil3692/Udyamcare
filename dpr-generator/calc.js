@@ -17,6 +17,11 @@
   };
   var PREOP_AMORT_YEARS = 5;
   var PMEGP_SUBSIDY_LOCK_MONTHS = 36;
+  // CM YUVA (Uttar Pradesh): margin money subsidy 10% of project cost (max ₹50,000),
+  // 100% interest subsidy for 4 years, loan up to ₹5 lakh
+  var CMYUVA_SUBSIDY_CAP = 50000;
+  var CMYUVA_INTEREST_YEARS = 4;
+  var CMYUVA_LOAN_CAP = 500000;
 
   function num(v, dflt) {
     var n = parseFloat(v);
@@ -36,6 +41,12 @@
         return {
           ownPct: special ? 5 : 10,
           subsidyPct: special ? (rural ? 35 : 25) : (rural ? 25 : 15)
+        };
+      case 'CMYUVA':
+        var reserved = ['SC', 'ST', 'Divyang'].indexOf(d.category) >= 0 || d.aspirational === 'Yes';
+        return {
+          ownPct: reserved ? 10 : d.category === 'OBC' ? 12.5 : 15,
+          subsidyPct: 10, tenureYears: 4, moratorium: 6
         };
       case 'MUDRA': return { ownPct: 10, subsidyPct: 0 };
       case 'CGTMSE': return { ownPct: 15, subsidyPct: 0 };
@@ -139,7 +150,8 @@
     var numeric = ['age', 'premisesArea', 'ownPct', 'subsidyPct', 'tlRate', 'wcRate', 'tenureYears',
       'moratorium', 'land', 'building', 'furniture', 'electrical', 'computers', 'vehicle', 'preop',
       'contingencyPct', 'priceEsc', 'costEsc', 'years', 'salaryInc', 'rent', 'power', 'otherExp',
-      'repairsPct', 'insurancePct', 'sellingPct', 'rmDays', 'fgDays', 'debtorDays', 'creditorDays', 'drawings'];
+      'repairsPct', 'insurancePct', 'sellingPct', 'rmDays', 'fgDays', 'debtorDays', 'creditorDays', 'drawings',
+      'termLoanAmt', 'wcLoanAmt', 'wcOverride'];
     numeric.forEach(function (k) { d[k] = num(raw[k]); });
     d.machinery = (raw.machinery || []).filter(function (r) { return r.name || num(r.rate); })
       .map(function (r) { return { name: r.name || 'Equipment', qty: num(r.qty, 1), rate: num(r.rate), supplier: r.supplier || '' }; });
@@ -220,7 +232,8 @@
       Y.currentAssets = Y.rmStock + Y.fgStock + Y.debtors;
       Y.netWC = Y.currentAssets - Y.creditors;
     });
-    var wcRequirement = Math.max(0, years[0].netWC);
+    // A fixed working-capital figure (e.g. as appraised by the bank) overrides the operating-cycle estimate
+    var wcRequirement = d.wcOverride > 0 ? d.wcOverride : Math.max(0, years[0].netWC);
 
     // ---------- Cost of project & means of finance ----------
     var totalCost = fixedAssets + preopTotal + wcRequirement;
@@ -228,9 +241,23 @@
     var own = totalCost * ownPct;
     var termLoan = (fixedAssets + preopTotal) * (1 - ownPct);
     var wcLoan = wcRequirement * (1 - ownPct);
+    var fixedLoans = d.termLoanAmt > 0 || d.wcLoanAmt > 0;
+    if (fixedLoans) { // loan amounts fixed by the bank; promoter brings the balance
+      termLoan = d.termLoanAmt;
+      wcLoan = d.wcLoanAmt;
+      own = totalCost - termLoan - wcLoan;
+      if (own < 0) {
+        return { errors: ['Term loan + working capital loan (' + Math.round(termLoan + wcLoan) + ') project cost (' +
+          Math.round(totalCost) + ') se zyada hai. Machinery / working capital badhayein ya loan amount ghatayein.'], d: d };
+      }
+    }
+    var ownPctEff = totalCost ? Math.round(own / totalCost * 10000) / 100 : 0;
     var bankLoan = termLoan + wcLoan;
-    var subsidy = d.scheme === 'PMEGP' ? totalCost * d.subsidyPct / 100 : 0;
-    var subsidyHeld = Math.min(subsidy, termLoan);
+    var subsidy = 0;
+    if (d.scheme === 'PMEGP') subsidy = totalCost * d.subsidyPct / 100;
+    if (d.scheme === 'CMYUVA') subsidy = Math.min(totalCost * d.subsidyPct / 100, CMYUVA_SUBSIDY_CAP);
+    // Only PMEGP keeps the subsidy as an interest-free TDR adjusted against the loan
+    var subsidyHeld = d.scheme === 'PMEGP' ? Math.min(subsidy, termLoan) : 0;
 
     var loan = loanSchedule(termLoan, d.tlRate, d.tenureYears, d.moratorium, subsidyHeld, N);
 
@@ -258,7 +285,8 @@
       Y.intTL = loan.rows[i].interest;
       Y.intWC = wcLoan * d.wcRate / 100;
       Y.interest = Y.intTL + Y.intWC;
-      Y.pbt = Y.ebitda - Y.dep - Y.amort - Y.interest;
+      Y.interestSubsidy = d.scheme === 'CMYUVA' && Y.year <= CMYUVA_INTEREST_YEARS ? Y.interest : 0;
+      Y.pbt = Y.ebitda + Y.interestSubsidy - Y.dep - Y.amort - Y.interest;
       var taxable = Y.pbt - lossCF;
       if (taxable < 0) { lossCF = -taxable; taxable = 0; } else { lossCF = 0; }
       Y.tax = incomeTax(d.constitution, taxable);
@@ -278,8 +306,8 @@
         src.push(['Own contribution (capital)', own], ['Term loan from bank', termLoan], ['Working capital loan', wcLoan]);
         if (subsidy) src.push(['Subsidy / margin money received', subsidy]);
         use.push(['Purchase of fixed assets', fixedAssets], ['Pre-operative exp. & contingency', preopTotal]);
-        if (subsidy) use.push(['Subsidy kept as TDR with bank', subsidy]);
-        tdr = subsidy;
+        if (subsidyHeld) use.push(['Subsidy kept as TDR with bank', subsidy]);
+        tdr = subsidyHeld ? subsidy : 0;
       }
       src.push(['Net profit after tax', Y.pat], ['Depreciation', Y.dep], ['Pre-operative exp. written off', Y.amort],
         ['Increase in sundry creditors', Y.creditors - prevCred]);
@@ -358,6 +386,10 @@
       var cap = d.activity === 'Manufacturing' ? 5000000 : 2000000;
       if (totalCost > cap) warnings.push('PMEGP me ' + d.activity + ' ke liye max project cost ₹' + (cap / 100000) + ' lakh hai; aapka project cost isse zyada hai.');
     }
+    if (d.scheme === 'CMYUVA') {
+      if (bankLoan > CMYUVA_LOAN_CAP) warnings.push('CM YUVA me pehle charan ka loan max ₹5 lakh hai; bank loan isse zyada aa raha hai.');
+      if (d.age && (d.age < 21 || d.age > 40)) warnings.push('CM YUVA ke liye umr 21 se 40 saal honi chahiye.');
+    }
     if (d.scheme === 'MUDRA' && bankLoan > 2000000) warnings.push('MUDRA loan ki seema ₹20 lakh hai; bank loan isse zyada aa raha hai.');
     if (avgDscr !== null && avgDscr < 1.5) warnings.push('Average DSCR ' + avgDscr.toFixed(2) + ' hai — bank aam taur par 1.5 se upar dekhte hain. Selling price, capacity ya expenses check karein.');
     if (years.some(function (Y) { return Y.closingCash < 0; })) warnings.push('Kisi saal closing cash negative aa raha hai — repayment ke liye cash kam pad raha hai. Moratorium / tenure badhayein ya kharche ghatayein.');
@@ -368,7 +400,7 @@
       assets: assets, assetLabels: ASSET_LABELS, depRates: DEP_RATES, depreciable: depreciable,
       machineryCost: machineryCost, fixedAssets: fixedAssets, contingency: contingency, preopTotal: preopTotal,
       wcRequirement: wcRequirement, totalCost: totalCost,
-      own: own, ownPct: d.ownPct, termLoan: termLoan, wcLoan: wcLoan, bankLoan: bankLoan, subsidy: subsidy,
+      own: own, ownPct: ownPctEff, fixedLoans: fixedLoans, termLoan: termLoan, wcLoan: wcLoan, bankLoan: bankLoan, subsidy: subsidy,
       loan: loan, years: years, avgDscr: avgDscr, minDscr: minDscr, payback: payback, projectIrr: projectIrr,
       mudraCategory: mudraCategory(bankLoan), specialCategory: isSpecialCategory(d)
     };
