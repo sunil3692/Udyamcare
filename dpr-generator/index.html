@@ -111,6 +111,13 @@
       <label>Repayment period (years)<input name="tenureYears" type="number" min="1" max="15" value="7"></label>
       <label>Moratorium (months)<input name="moratorium" type="number" min="0" max="36" value="6"></label>
     </div>
+    <h4>Bank ke fixed amount (optional)</h4>
+    <p class="hint">Agar bank ne loan amount pehle se tay kar diya hai to yahan bharein. Tab own contribution = project cost − dono loan, aur upar wala own % ignore hoga.</p>
+    <div class="grid">
+      <label>Term loan amount (₹)<input name="termLoanAmt" type="number" min="0"></label>
+      <label>Working capital loan amount (₹)<input name="wcLoanAmt" type="number" min="0"></label>
+      <label>Working capital requirement (₹)<input name="wcOverride" type="number" min="0"><small>Khali chhodenge to stock/debtor days se nikalega</small></label>
+    </div>
   </details>
 
   <details open>

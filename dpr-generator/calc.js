@@ -139,7 +139,8 @@
     var numeric = ['age', 'premisesArea', 'ownPct', 'subsidyPct', 'tlRate', 'wcRate', 'tenureYears',
       'moratorium', 'land', 'building', 'furniture', 'electrical', 'computers', 'vehicle', 'preop',
       'contingencyPct', 'priceEsc', 'costEsc', 'years', 'salaryInc', 'rent', 'power', 'otherExp',
-      'repairsPct', 'insurancePct', 'sellingPct', 'rmDays', 'fgDays', 'debtorDays', 'creditorDays', 'drawings'];
+      'repairsPct', 'insurancePct', 'sellingPct', 'rmDays', 'fgDays', 'debtorDays', 'creditorDays', 'drawings',
+      'termLoanAmt', 'wcLoanAmt', 'wcOverride'];
     numeric.forEach(function (k) { d[k] = num(raw[k]); });
     d.machinery = (raw.machinery || []).filter(function (r) { return r.name || num(r.rate); })
       .map(function (r) { return { name: r.name || 'Equipment', qty: num(r.qty, 1), rate: num(r.rate), supplier: r.supplier || '' }; });
@@ -220,7 +221,8 @@
       Y.currentAssets = Y.rmStock + Y.fgStock + Y.debtors;
       Y.netWC = Y.currentAssets - Y.creditors;
     });
-    var wcRequirement = Math.max(0, years[0].netWC);
+    // A fixed working-capital figure (e.g. as appraised by the bank) overrides the operating-cycle estimate
+    var wcRequirement = d.wcOverride > 0 ? d.wcOverride : Math.max(0, years[0].netWC);
 
     // ---------- Cost of project & means of finance ----------
     var totalCost = fixedAssets + preopTotal + wcRequirement;
@@ -228,6 +230,17 @@
     var own = totalCost * ownPct;
     var termLoan = (fixedAssets + preopTotal) * (1 - ownPct);
     var wcLoan = wcRequirement * (1 - ownPct);
+    var fixedLoans = d.termLoanAmt > 0 || d.wcLoanAmt > 0;
+    if (fixedLoans) { // loan amounts fixed by the bank; promoter brings the balance
+      termLoan = d.termLoanAmt;
+      wcLoan = d.wcLoanAmt;
+      own = totalCost - termLoan - wcLoan;
+      if (own < 0) {
+        return { errors: ['Term loan + working capital loan (' + Math.round(termLoan + wcLoan) + ') project cost (' +
+          Math.round(totalCost) + ') se zyada hai. Machinery / working capital badhayein ya loan amount ghatayein.'], d: d };
+      }
+    }
+    var ownPctEff = totalCost ? Math.round(own / totalCost * 10000) / 100 : 0;
     var bankLoan = termLoan + wcLoan;
     var subsidy = d.scheme === 'PMEGP' ? totalCost * d.subsidyPct / 100 : 0;
     var subsidyHeld = Math.min(subsidy, termLoan);
@@ -368,7 +381,7 @@
       assets: assets, assetLabels: ASSET_LABELS, depRates: DEP_RATES, depreciable: depreciable,
       machineryCost: machineryCost, fixedAssets: fixedAssets, contingency: contingency, preopTotal: preopTotal,
       wcRequirement: wcRequirement, totalCost: totalCost,
-      own: own, ownPct: d.ownPct, termLoan: termLoan, wcLoan: wcLoan, bankLoan: bankLoan, subsidy: subsidy,
+      own: own, ownPct: ownPctEff, fixedLoans: fixedLoans, termLoan: termLoan, wcLoan: wcLoan, bankLoan: bankLoan, subsidy: subsidy,
       loan: loan, years: years, avgDscr: avgDscr, minDscr: minDscr, payback: payback, projectIrr: projectIrr,
       mudraCategory: mudraCategory(bankLoan), specialCategory: isSpecialCategory(d)
     };

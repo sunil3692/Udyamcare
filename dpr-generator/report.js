@@ -302,10 +302,11 @@
       ['Debtors / receivables (' + d.debtorDays + ' days)', inr(Y1.debtors)],
       { cls: 'sub', cells: ['Total current assets', inr(Y1.currentAssets)] },
       ['Less: Sundry creditors (' + d.creditorDays + ' days)', inr(Y1.creditors)],
-      { cls: 'sub', cells: ['Net working capital requirement', inr(m.wcRequirement)] },
-      ["Promoter's margin (" + m.ownPct + '%)', inr(m.wcRequirement - m.wcLoan)],
+      { cls: 'sub', cells: ['Net working capital (operating cycle)', inr(Y1.netWC)] },
+      m.d.wcOverride > 0 ? { cls: 'sub', cells: ['Working capital requirement (as assessed)', inr(m.wcRequirement)] } : null,
+      ["Promoter's margin" + (m.fixedLoans ? '' : ' (' + m.ownPct + '%)'), inr(m.wcRequirement - m.wcLoan)],
       { cls: 'total', cells: ['Working capital loan (CC limit)', inr(m.wcLoan)] }
-    ];
+    ].filter(Boolean);
     h.push('<section>', H('Assessment of Working Capital (Year 1)'), table(['Particulars', 'Amount (₹)'], wcRows, { cls: 'num-right' }), '</section>');
 
     // ---------- 13. Cost of production & profitability ----------
