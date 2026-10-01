@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UdyamCare DPR Generator</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar no-print">
+  <div class="brand">UdyamCare <span>Project Report (DPR) Generator</span></div>
+  <nav class="tabs">
+    <button type="button" class="tab active" data-tab="form">1. Details bharein</button>
+    <button type="button" class="tab" data-tab="report">2. Project Report</button>
+  </nav>
+</header>
+
+<main>
+<!-- ===================== FORM ===================== -->
+<section id="tab-form" class="panel no-print">
+  <div class="toolbar">
+    <button type="button" id="btn-sample-mfg" class="ghost">Sample: Atta Chakki (Manufacturing)</button>
+    <button type="button" id="btn-sample-svc" class="ghost">Sample: Beauty Parlour (Service)</button>
+    <button type="button" id="btn-save" class="ghost">Save data (.json)</button>
+    <label class="ghost file-btn">Load data<input type="file" id="file-load" accept=".json,application/json"></label>
+    <button type="button" id="btn-reset" class="ghost danger">Clear form</button>
+  </div>
+  <p class="hint">Sirf <b>*</b> wale fields zaroori hain. Baaki fields me sensible default bhare hue hain — zarurat ho to badal dein. Sab amount <b>₹ (Rupees)</b> me bharein.</p>
+
+  <form id="dpr-form" autocomplete="off">
+
+  <details open>
+    <summary>A. Promoter / Applicant details</summary>
+    <div class="grid">
+      <label>Applicant name *<input name="applicantName" required></label>
+      <label>Father's / Husband's name<input name="fatherName"></label>
+      <label>Age (years)<input name="age" type="number" min="18" max="100"></label>
+      <label>Gender
+        <select name="gender"><option>Male</option><option>Female</option><option>Transgender</option></select>
+      </label>
+      <label>Social category
+        <select name="category">
+          <option value="General">General</option>
+          <option value="OBC">OBC</option>
+          <option value="SC">SC</option>
+          <option value="ST">ST</option>
+          <option value="Minority">Minority</option>
+          <option value="Ex-Serviceman">Ex-Serviceman</option>
+          <option value="Divyang">Divyang (PH)</option>
+        </select>
+      </label>
+      <label>Education qualification<input name="qualification" placeholder="e.g. 12th Pass / B.Com"></label>
+      <label class="span2">Experience / skill<input name="experience" placeholder="e.g. 3 saal flour mill me kaam ka anubhav"></label>
+      <label>Mobile<input name="mobile" inputmode="tel"></label>
+      <label>Email<input name="email" type="email"></label>
+      <label>PAN<input name="pan" maxlength="10" style="text-transform:uppercase"></label>
+      <label>Udyam Registration No.<input name="udyamNo" placeholder="UDYAM-XX-00-0000000"></label>
+      <label class="span2">Residential address<input name="resAddress"></label>
+    </div>
+  </details>
+
+  <details open>
+    <summary>B. Business / Unit details</summary>
+    <div class="grid">
+      <label>Business / Unit name *<input name="unitName" required></label>
+      <label>Constitution
+        <select name="constitution">
+          <option>Proprietorship</option><option>Partnership</option><option>LLP</option><option>Private Limited</option>
+        </select>
+      </label>
+      <label>Activity type *
+        <select name="activity" required>
+          <option value="Manufacturing">Manufacturing</option>
+          <option value="Service">Service</option>
+          <option value="Trading">Trading</option>
+        </select>
+      </label>
+      <label>Product / Service line *<input name="productLine" required placeholder="e.g. Wheat flour (atta), besan & masala grinding"></label>
+      <label class="span2">Unit address<input name="unitAddress" placeholder="Village/Town, Tehsil, District, State - PIN"></label>
+      <label>District<input name="district"></label>
+      <label>State<input name="state"></label>
+      <label>Location
+        <select name="area"><option value="Rural">Rural</option><option value="Urban">Urban</option></select>
+      </label>
+      <label>Premises
+        <select name="premises"><option value="Rented">Rented</option><option value="Owned">Owned</option><option value="Leased">Leased</option></select>
+      </label>
+      <label>Area of premises (sq. ft.)<input name="premisesArea" type="number" min="0"></label>
+      <label>Proposed start (month-year)<input name="startDate" type="month"></label>
+    </div>
+  </details>
+
+  <details open>
+    <summary>C. Loan scheme &amp; bank</summary>
+    <div class="grid">
+      <label>Scheme
+        <select name="scheme">
+          <option value="PMEGP">PMEGP (KVIC subsidy)</option>
+          <option value="MUDRA">PM MUDRA Yojana</option>
+          <option value="CGTMSE">CGTMSE / MSME Term Loan</option>
+          <option value="STANDUP">Stand-Up India</option>
+          <option value="OTHER">Other / State scheme</option>
+        </select>
+      </label>
+      <label>Bank name<input name="bankName"></label>
+      <label>Branch<input name="bankBranch"></label>
+      <label>Own contribution (%)<input name="ownPct" type="number" step="0.1" min="0" max="100"><small>Scheme select karne par auto-fill</small></label>
+      <label>Subsidy / margin money (%)<input name="subsidyPct" type="number" step="0.1" min="0" max="100"><small>PMEGP: auto as per category &amp; area</small></label>
+      <label>Term loan interest (% p.a.)<input name="tlRate" type="number" step="0.05" value="10.5"></label>
+      <label>Working capital (CC) interest (% p.a.)<input name="wcRate" type="number" step="0.05" value="11"></label>
+      <label>Repayment period (years)<input name="tenureYears" type="number" min="1" max="15" value="7"></label>
+      <label>Moratorium (months)<input name="moratorium" type="number" min="0" max="36" value="6"></label>
+    </div>
+  </details>
+
+  <details open>
+    <summary>D. Project cost (Fixed capital)</summary>
+    <div class="grid">
+      <label>Land cost (if purchased)<input name="land" type="number" min="0" value="0"></label>
+      <label>Building / shed / civil work<input name="building" type="number" min="0" value="0"></label>
+      <label>Furniture &amp; fixtures<input name="furniture" type="number" min="0" value="0"></label>
+      <label>Electrification &amp; installation<input name="electrical" type="number" min="0" value="0"></label>
+      <label>Computer / IT equipment<input name="computers" type="number" min="0" value="0"></label>
+      <label>Vehicle (commercial)<input name="vehicle" type="number" min="0" value="0"></label>
+      <label>Pre-operative expenses<input name="preop" type="number" min="0" value="0"><small>Registration, licence, trial run, etc.</small></label>
+      <label>Contingency (% of fixed assets)<input name="contingencyPct" type="number" step="0.5" min="0" value="2"></label>
+    </div>
+    <h4>Plant &amp; Machinery / Equipment *</h4>
+    <table class="rows" id="tbl-machinery">
+      <thead><tr><th>Machine / equipment name</th><th>Qty</th><th>Rate (₹)</th><th>Supplier (optional)</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button type="button" class="add-row" data-table="tbl-machinery">+ Add machine</button>
+  </details>
+
+  <details open>
+    <summary>E. Products / Services &amp; sales</summary>
+    <table class="rows" id="tbl-products">
+      <thead><tr><th>Product / service</th><th>Unit</th><th>Full capacity per year (units)</th><th>Selling price per unit (₹)</th><th>Raw material cost per unit (₹)</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button type="button" class="add-row" data-table="tbl-products">+ Add product</button>
+    <div class="grid">
+      <label class="span2">Capacity utilisation year-wise (%)<input name="utilisation" value="60,65,70,75,80"><small>Comma se alag karein; baaki saal last value lega</small></label>
+      <label>Sale price escalation (% per year)<input name="priceEsc" type="number" step="0.5" value="3"></label>
+      <label>Cost escalation (% per year)<input name="costEsc" type="number" step="0.5" value="4"></label>
+      <label>Projection period (years)<input name="years" type="number" min="3" max="10" value="5"></label>
+    </div>
+  </details>
+
+  <details open>
+    <summary>F. Manpower</summary>
+    <table class="rows" id="tbl-staff">
+      <thead><tr><th>Designation</th><th>No.</th><th>Salary per month (₹ each)</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button type="button" class="add-row" data-table="tbl-staff">+ Add staff</button>
+    <div class="grid">
+      <label>Salary increment (% per year)<input name="salaryInc" type="number" step="0.5" value="5"></label>
+    </div>
+  </details>
+
+  <details>
+    <summary>G. Operating expenses &amp; working capital (optional — defaults diye hue hain)</summary>
+    <div class="grid">
+      <label>Rent per month (₹)<input name="rent" type="number" min="0" value="0"></label>
+      <label>Electricity / power per month (₹)<input name="power" type="number" min="0" value="0"></label>
+      <label>Other expenses per month (₹)<input name="otherExp" type="number" min="0" value="0"><small>Phone, stationery, transport, etc.</small></label>
+      <label>Repairs &amp; maintenance (% of machinery+building)<input name="repairsPct" type="number" step="0.1" value="2"></label>
+      <label>Insurance (% of fixed assets)<input name="insurancePct" type="number" step="0.1" value="0.5"></label>
+      <label>Selling &amp; admin expenses (% of sales)<input name="sellingPct" type="number" step="0.1" value="2"></label>
+      <label>Raw material stock (days)<input name="rmDays" type="number" min="0" value="15"></label>
+      <label>Finished goods stock (days)<input name="fgDays" type="number" min="0" value="7"></label>
+      <label>Credit to customers / debtors (days)<input name="debtorDays" type="number" min="0" value="15"></label>
+      <label>Credit from suppliers / creditors (days)<input name="creditorDays" type="number" min="0" value="7"></label>
+      <label>Proprietor drawings per year (₹)<input name="drawings" type="number" min="0" value="0"></label>
+    </div>
+  </details>
+
+  <details>
+    <summary>H. Extra write-up (optional — khali chhodenge to auto text banega)</summary>
+    <div class="grid one">
+      <label>Market potential / demand<textarea name="marketText" rows="3"></textarea></label>
+      <label>Manufacturing / service process<textarea name="processText" rows="3"></textarea></label>
+      <label>Marketing strategy<textarea name="marketingText" rows="3"></textarea></label>
+    </div>
+  </details>
+
+  <div class="actions">
+    <button type="submit" class="primary">Generate Project Report →</button>
+  </div>
+  <p id="form-errors" class="errors" role="alert"></p>
+  </form>
+</section>
+
+<!-- ===================== REPORT ===================== -->
+<section id="tab-report" class="panel hidden">
+  <div class="toolbar no-print">
+    <button type="button" id="btn-print" class="primary">Print / Save as PDF</button>
+    <button type="button" id="btn-edit" class="ghost">← Details edit karein</button>
+  </div>
+  <article id="report"></article>
+</section>
+</main>
+
+<template id="tpl-machinery">
+  <tr><td><input data-k="name" placeholder="e.g. Flour mill 20&quot; with motor"></td><td><input data-k="qty" type="number" min="0" value="1"></td><td><input data-k="rate" type="number" min="0"></td><td><input data-k="supplier"></td><td><button type="button" class="del" title="Remove">×</button></td></tr>
+</template>
+<template id="tpl-products">
+  <tr><td><input data-k="name" placeholder="e.g. Wheat flour"></td><td><input data-k="unit" placeholder="Qtl / Kg / Nos"></td><td><input data-k="capacity" type="number" min="0"></td><td><input data-k="price" type="number" min="0" step="any"></td><td><input data-k="rmCost" type="number" min="0" step="any" value="0"></td><td><button type="button" class="del" title="Remove">×</button></td></tr>
+</template>
+<template id="tpl-staff">
+  <tr><td><input data-k="role" placeholder="e.g. Skilled worker"></td><td><input data-k="count" type="number" min="0" value="1"></td><td><input data-k="salary" type="number" min="0"></td><td><button type="button" class="del" title="Remove">×</button></td></tr>
+</template>
+
+<script src="calc.js"></script>
+<script src="report.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
