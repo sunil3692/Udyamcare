@@ -25,6 +25,19 @@
     <label class="ghost file-btn">Load data<input type="file" id="file-load" accept=".json,application/json"></label>
     <button type="button" id="btn-reset" class="ghost danger">Clear form</button>
   </div>
+  <div class="ai-box">
+    <h3>✨ AI Quick DPR</h3>
+    <p class="hint">Bas 5–10 line me details likhiye (naam, pita ka naam, address, business, project cost, loan, expected sales) aur quotation ki photo/PDF lagaiye. AI baaki form khud bhar dega — phir aap check karke report banaiye.</p>
+    <textarea id="ai-details" rows="7" placeholder="Name :- Naman Maheshwari&#10;Father :- Shri Pawan Maheshwari&#10;Address :- ... Jalesar&#10;Business :- A N Enterprises&#10;Business type :- Mushroom production and processing unit&#10;Project cost :- 500000&#10;Term loan 227900, Working capital loan 197100&#10;Expected sales 42000/month"></textarea>
+    <div class="ai-row">
+      <label class="ghost file-btn">📎 Quotation lagayein (photo / PDF, max 3)<input type="file" id="ai-files" accept="application/pdf,image/jpeg,image/png,image/webp" multiple></label>
+      <span id="ai-file-names" class="hint"></span>
+      <button type="button" id="btn-ai" class="primary">AI se form bharein</button>
+    </div>
+    <p id="ai-status" class="ai-status" role="status"></p>
+    <div id="ai-notes" class="ai-notes hidden"></div>
+  </div>
+
   <p class="hint">Sirf <b>*</b> wale fields zaroori hain. Baaki fields me sensible default bhare hue hain — zarurat ho to badal dein. Sab amount <b>₹ (Rupees)</b> me bharein.</p>
 
   <form id="dpr-form" autocomplete="off">

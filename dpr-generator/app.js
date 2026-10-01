@@ -211,6 +211,136 @@
     if (generate()) showTab('report');
   });
 
+  // ---------- AI Quick DPR ----------
+  // Backend lives in the UdyamCare Floot app (endpoints/dpr/ai_fill_POST), which calls Google Gemini.
+  var AI_ENDPOINT = 'https://udyamcare.floot.app/_api/dpr/ai_fill';
+  var AI_MAX_FILES = 3;
+  var AI_MAX_TOTAL_BYTES = 3500000;
+  var aiFilesEl = document.getElementById('ai-files');
+  var aiStatusEl = document.getElementById('ai-status');
+  var aiNotesEl = document.getElementById('ai-notes');
+  var aiButton = document.getElementById('btn-ai');
+
+  function setAiStatus(text, isError) {
+    aiStatusEl.textContent = text;
+    aiStatusEl.classList.toggle('error', !!isError);
+  }
+
+  aiFilesEl.addEventListener('change', function () {
+    var names = Array.prototype.map.call(aiFilesEl.files, function (f) { return f.name; });
+    document.getElementById('ai-file-names').textContent = names.join(', ');
+  });
+
+  // Phone photos are often 3–8 MB; shrink them so the upload stays under the limit.
+  function shrinkImage(file) {
+    if (!/^image\//.test(file.type) || file.size < 900000) return Promise.resolve(file);
+    return new Promise(function (resolve) {
+      var img = new Image();
+      var url = URL.createObjectURL(file);
+      img.onload = function () {
+        var scale = Math.min(1, 2000 / Math.max(img.width, img.height));
+        var canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(function (blob) {
+          resolve(blob ? new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' }) : file);
+        }, 'image/jpeg', 0.85);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); resolve(file); };
+      img.src = url;
+    });
+  }
+
+  function fixedCapital(data) {
+    var machinery = (data.machinery || []).reduce(function (s, m) { return s + (+m.qty || 0) * (+m.rate || 0); }, 0);
+    var depreciable = ['building', 'furniture', 'electrical', 'computers', 'vehicle']
+      .reduce(function (s, k) { return s + (+data[k] || 0); }, 0) + machinery;
+    return (+data.land || 0) + depreciable + (+data.preop || 0) + depreciable * (+data.contingencyPct || 0) / 100;
+  }
+
+  // Make the AI's estimates add up exactly to the figures the user gave.
+  function reconcile(data, targets) {
+    var notes = [];
+    if (targets.termLoan) data.termLoanAmt = targets.termLoan;
+    if (targets.wcLoan) data.wcLoanAmt = targets.wcLoan;
+    if (targets.projectCost) {
+      data.contingencyPct = 0;
+      var wc = targets.projectCost - fixedCapital(data);
+      if (wc > 0) {
+        data.wcOverride = Math.round(wc);
+      } else {
+        notes.push('Machinery/building ka total project cost se zyada aa raha hai — fixed assets check karein.');
+      }
+    }
+    if (targets.annualSales) {
+      var model = DPRCalc.compute(data);
+      if (!model.errors.length && model.years[0].sales > 0) {
+        var factor = targets.annualSales / model.years[0].sales;
+        data.products.forEach(function (p) { p.capacity = Math.round(p.capacity * factor); });
+        notes.push('Products ki capacity ko aapki expected sales (₹' + Math.round(targets.annualSales / 12).toLocaleString('en-IN') + '/month) ke hisaab se set kiya.');
+      }
+    }
+    return notes;
+  }
+
+  function showAiNotes(notes) {
+    aiNotesEl.innerHTML = '';
+    if (!notes.length) { aiNotesEl.classList.add('hidden'); return; }
+    var title = document.createElement('b');
+    title.textContent = 'AI ne yeh maan kar bhara hai — ek baar check kar lijiye:';
+    var ul = document.createElement('ul');
+    notes.forEach(function (n) {
+      var li = document.createElement('li');
+      li.textContent = n;
+      ul.appendChild(li);
+    });
+    aiNotesEl.appendChild(title);
+    aiNotesEl.appendChild(ul);
+    aiNotesEl.classList.remove('hidden');
+  }
+
+  aiButton.addEventListener('click', function () {
+    var details = document.getElementById('ai-details').value.trim();
+    var files = Array.prototype.slice.call(aiFilesEl.files);
+    if (details.length < 20) { setAiStatus('Pehle project ki details likhiye.', true); return; }
+    if (files.length > AI_MAX_FILES) { setAiStatus('Max ' + AI_MAX_FILES + ' quotation files lagaiye.', true); return; }
+
+    aiButton.disabled = true;
+    setAiStatus('AI form bhar raha hai… (20–60 second lag sakte hain)');
+    showAiNotes([]);
+
+    Promise.all(files.map(shrinkImage)).then(function (ready) {
+      var total = ready.reduce(function (s, f) { return s + f.size; }, 0);
+      if (total > AI_MAX_TOTAL_BYTES) throw new Error('Quotation files bahut badi hain (total 3.5 MB se kam rakhein).');
+      var body = new FormData();
+      body.append('details', details);
+      ready.forEach(function (f) { body.append('files', f, f.name); });
+      return fetch(AI_ENDPOINT, { method: 'POST', body: body });
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (json) {
+        if (!res.ok) throw new Error(json.error || 'AI se jawab nahi mila. Thodi der baad try karein.');
+        return json;
+      });
+    }).then(function (result) {
+      var data = result.form;
+      ['age', 'premisesArea', 'termLoanAmt', 'wcLoanAmt'].forEach(function (k) { if (data[k] == null) data[k] = ''; });
+      var extra = reconcile(data, result.targets || {});
+      writeForm(data);
+      applySchemeDefaults();
+      if (data.tenureYears) form.elements.tenureYears.value = data.tenureYears;
+      if (data.moratorium !== undefined) form.elements.moratorium.value = data.moratorium;
+      persist();
+      showAiNotes((result.notes || []).concat(extra));
+      setAiStatus('✅ Form bhar gaya. Neeche details check kijiye, phir "Generate Project Report" dabaiye.');
+    }).catch(function (err) {
+      setAiStatus(err.message === 'Failed to fetch' ? 'AI server se connect nahi ho paya. Internet check karke dobara try karein.' : err.message, true);
+    }).then(function () {
+      aiButton.disabled = false;
+    });
+  });
+
   // ---------- init ----------
   var saved = null;
   try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (e) { saved = null; }
