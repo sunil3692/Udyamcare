@@ -42,6 +42,7 @@
 
   var SCHEME_NAMES = {
     PMEGP: "Prime Minister's Employment Generation Programme (PMEGP)",
+    CMYUVA: 'Mukhyamantri Yuva Udyami Vikas Abhiyan (CM YUVA), Uttar Pradesh',
     MUDRA: 'Pradhan Mantri MUDRA Yojana (PMMY)',
     CGTMSE: 'MSME Term Loan under CGTMSE (collateral-free)',
     STANDUP: 'Stand-Up India Scheme',
@@ -124,6 +125,8 @@
       list.push('FSSAI Registration / Licence');
     }
     if (d.scheme === 'PMEGP') list.push('EDP training certificate (as required under PMEGP)');
+    if (d.scheme === 'CMYUVA') list.push('Skill / training certificate from a recognised scheme (as required under CM YUVA)',
+      'Domicile certificate of Uttar Pradesh');
     return list;
   }
 
@@ -169,7 +172,8 @@
       ['Promoter\'s contribution', inr(m.own) + ' (' + m.ownPct + '%)'],
       ['Term loan', inr(m.termLoan)],
       ['Working capital loan (CC)', inr(m.wcLoan)],
-      m.subsidy ? ['Margin money subsidy (PMEGP)', inr(m.subsidy) + ' (' + d.subsidyPct + '% of project cost)'] : ['', ''],
+      m.subsidy ? ['Margin money subsidy (' + (d.scheme === 'CMYUVA' ? 'CM YUVA' : 'PMEGP') + ')', inr(m.subsidy) + ' (' + d.subsidyPct + '% of project cost' + (d.scheme === 'CMYUVA' ? ', max ₹50,000' : '') + ')'] : ['', ''],
+      d.scheme === 'CMYUVA' ? ['Interest subsidy', '100% of interest for 4 years (State Government)'] : ['', ''],
       d.scheme === 'MUDRA' ? ['MUDRA category', m.mudraCategory] : ['', ''],
       ['Repayment', d.tenureYears + ' years incl. ' + d.moratorium + ' months moratorium'],
       ['Employment generation', employment + ' persons (including promoter)'],
@@ -287,7 +291,13 @@
       { cls: 'total', cells: ['Total', inr(m.totalCost), lakh(m.totalCost)] }
     ];
     h.push('<section>', H('Means of Finance'), table(['Source', 'Amount (₹)', '₹ lakh'], mf, { cls: 'num-right' }));
-    if (m.subsidy) {
+    if (d.scheme === 'CMYUVA') {
+      h.push('<p><b>CM YUVA benefits:</b> Promoter\'s margin of ' + m.ownPct + '% (' + esc(d.category) +
+        (d.aspirational === 'Yes' ? ', aspirational district' : '') + '). Margin money subsidy of ' + inr(m.subsidy) +
+        ' (10% of project cost, maximum ₹50,000) from the Government of Uttar Pradesh. The loan is collateral-free with ' +
+        'credit guarantee under CGTMSE, and 100% of the interest charged by the bank is reimbursed by the State Government ' +
+        'for 4 years, subject to timely repayment. The interest reimbursement is shown as income in the projections.</p>');
+    } else if (m.subsidy) {
       h.push('<p><b>PMEGP margin money subsidy:</b> ' + inr(m.subsidy) + ' @ ' + d.subsidyPct + '% of project cost (' +
         esc(d.category) + ', ' + esc(d.gender) + ', ' + esc(d.area) + ' area). The subsidy will be kept as Term Deposit ' +
         'Receipt (TDR) in the name of the beneficiary for 3 years; no interest is charged on the loan to the extent of the TDR, ' +
@@ -325,6 +335,7 @@
       yRow(m, 'C. EBITDA (A − B)', function (Y) { return lakh(Y.ebitda); }, 'sub'),
       yRow(m, 'Interest on term loan', function (Y) { return lakh(Y.intTL); }),
       yRow(m, 'Interest on working capital', function (Y) { return lakh(Y.intWC); }),
+      d.scheme === 'CMYUVA' ? yRow(m, 'Less: Interest subsidy (CM YUVA)', function (Y) { return lakh(Y.interestSubsidy); }) : null,
       yRow(m, 'Depreciation', function (Y) { return lakh(Y.dep); }),
       yRow(m, 'Pre-operative exp. written off', function (Y) { return lakh(Y.amort); }),
       yRow(m, 'D. Profit before tax', function (Y) { return lakh(Y.pbt); }, 'sub'),
@@ -333,7 +344,7 @@
       yRow(m, 'Cash accruals (PAT + Dep. + W/off)', function (Y) { return lakh(Y.cashAccruals); }),
       yRow(m, 'EBITDA margin', function (Y) { return pct(Y.ebitdaMargin, 1); }),
       yRow(m, 'Net profit margin', function (Y) { return pct(Y.npMargin, 1); })
-    ];
+    ].filter(Boolean);
     h.push('<section class="wide">', H('Projected Profitability Statement <small>(₹ in lakh)</small>'), table(yearHead(m), pl, { cls: 'num-right' }),
       '<p class="note">Tax computed as per ' + (d.constitution === 'Proprietorship' ? 'new tax regime slabs for individuals (incl. sec 87A rebate) + 4% cess' :
         d.constitution === 'Private Limited' ? 'sec 115BAA @ 22% + surcharge + cess' : 'firm/LLP rate @ 30% + 4% cess') + '; losses carried forward.</p>',
@@ -343,7 +354,7 @@
     var bs = [
       { cls: 'head', cells: ['<b>Liabilities</b>'].concat(m.years.map(function () { return ''; })) },
       yRow(m, "Promoter's capital (incl. retained profit)", function (Y) { return lakh(Y.capital); }),
-      m.subsidy ? yRow(m, 'Capital subsidy (PMEGP)', function (Y) { return lakh(Y.subsidyReserve); }) : null,
+      m.subsidy ? yRow(m, 'Capital subsidy (' + (d.scheme === 'CMYUVA' ? 'CM YUVA' : 'PMEGP') + ')', function (Y) { return lakh(Y.subsidyReserve); }) : null,
       yRow(m, 'Term loan', function (Y) { return lakh(Y.tlClosing); }),
       yRow(m, 'Working capital loan', function (Y) { return lakh(Y.wcLoan); }),
       yRow(m, 'Sundry creditors', function (Y) { return lakh(Y.creditors); }),
@@ -472,7 +483,7 @@
       ' of capacity in the first year indicate ' + (viable ? 'a comfortable' : 'an adequate') + ' capacity to repay the bank loan within the proposed tenure.</p>',
       '<p>The project will also generate employment for ' + employment + ' persons and contribute to the local economy. ' +
       'The bank is requested to sanction a term loan of <b>' + inr(m.termLoan) + '</b> and a working capital limit of <b>' + inr(m.wcLoan) + '</b>' +
-      (m.subsidy ? ' under PMEGP with margin money subsidy of ' + inr(m.subsidy) : '') + '.</p>',
+      (m.subsidy ? ' under ' + (d.scheme === 'CMYUVA' ? 'CM YUVA' : 'PMEGP') + ' with margin money subsidy of ' + inr(m.subsidy) : '') + '.</p>',
       '<div class="sign"><div>Place: ' + esc(d.district || '') + '<br>Date: ____________</div><div>(' + esc(d.applicantName) + ')<br>Signature of Promoter</div></div>',
       '</section>');
 
