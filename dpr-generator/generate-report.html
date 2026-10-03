@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generating Report...</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
+    #report { display: none; }
+  </style>
+</head>
+<body>
+  <p>Generating report...</p>
+  <div id="report"></div>
+
+  <script>
+    // Inject customer data
+    const customerData = {
+      "applicantName": "Ajay Kumar",
+      "fatherName": "Adesh Kumar",
+      "age": "32",
+      "gender": "Male",
+      "category": "General",
+      "qualification": "12th Pass",
+      "experience": "5 years in dairy operations",
+      "mobile": "9027683901",
+      "email": "ajay.dairy@example.com",
+      "pan": "",
+      "udyamNo": "",
+      "resAddress": "Dori Bachgao, Firozabad, Uttar Pradesh",
+      "unitName": "Adesh Dairy Products",
+      "constitution": "Proprietorship",
+      "activity": "Manufacturing",
+      "productLine": "Dairy products - milk, ghee, paneer, yogurt",
+      "unitAddress": "Sekhpura, Post Khadaua, Etah, Uttar Pradesh",
+      "district": "Etah",
+      "state": "Uttar Pradesh",
+      "area": "Rural",
+      "premises": "Rented",
+      "premisesArea": "1200",
+      "startDate": "2026-11",
+      "scheme": "CMYUVA",
+      "aspirational": "No",
+      "bankName": "Indian Overseas Bank",
+      "bankBranch": "Etah",
+      "ownPct": "12.5",
+      "subsidyPct": "0",
+      "tlRate": "9.5",
+      "wcRate": "10.5",
+      "tenureYears": "7",
+      "moratorium": "6",
+      "termLoanAmt": "387500",
+      "wcLoanAmt": "50000",
+      "wcOverride": "0",
+      "land": "0",
+      "building": "60000",
+      "furniture": "10000",
+      "electrical": "15000",
+      "computers": "5000",
+      "vehicle": "0",
+      "preop": "10000",
+      "contingencyPct": "0",
+      "machinery": [
+        {
+          "name": "Deep Freezer (3 HP, -18°C)",
+          "qty": "3",
+          "rate": "50000",
+          "supplier": "DIYA Machinery & Equipment, Etah"
+        },
+        {
+          "name": "Cream Extruder / Fat Separator",
+          "qty": "1",
+          "rate": "52000",
+          "supplier": "DIYA Machinery & Equipment"
+        },
+        {
+          "name": "Fat Machine / Churner",
+          "qty": "1",
+          "rate": "43000",
+          "supplier": "DIYA Machinery & Equipment"
+        },
+        {
+          "name": "Small Fat Machine",
+          "qty": "1",
+          "rate": "18000",
+          "supplier": "DIYA Machinery & Equipment"
+        },
+        {
+          "name": "Digital Weight Machine",
+          "qty": "2",
+          "rate": "12000",
+          "supplier": "DIYA Machinery & Equipment"
+        },
+        {
+          "name": "Steel Cans (30 Litre)",
+          "qty": "29",
+          "rate": "3900",
+          "supplier": "DIYA Machinery & Equipment"
+        }
+      ],
+      "products": [
+        {
+          "name": "Milk (chilled, pasteurized)",
+          "unit": "Litre",
+          "capacity": "800",
+          "price": "60",
+          "rmCost": "32"
+        },
+        {
+          "name": "Ghee (pure desi)",
+          "unit": "Kg",
+          "capacity": "40",
+          "price": "800",
+          "rmCost": "480"
+        },
+        {
+          "name": "Paneer",
+          "unit": "Kg",
+          "capacity": "50",
+          "price": "450",
+          "rmCost": "210"
+        },
+        {
+          "name": "Yogurt / Dahi",
+          "unit": "Kg",
+          "capacity": "60",
+          "price": "80",
+          "rmCost": "35"
+        }
+      ],
+      "utilisation": "60,65,70,75,80",
+      "priceEsc": "3",
+      "costEsc": "3",
+      "years": "5",
+      "staff": [
+        {
+          "role": "Manager / Operator",
+          "count": "1",
+          "salary": "8000"
+        },
+        {
+          "role": "Skilled Worker",
+          "count": "2",
+          "salary": "5000"
+        },
+        {
+          "role": "Helper / Packing",
+          "count": "1",
+          "salary": "3000"
+        }
+      ],
+      "salaryInc": "5",
+      "rent": "8000",
+      "power": "6000",
+      "otherExp": "3000",
+      "repairsPct": "3",
+      "insurancePct": "1",
+      "sellingPct": "2",
+      "rmDays": "3",
+      "fgDays": "2",
+      "debtorDays": "5",
+      "creditorDays": "10",
+      "drawings": "36000",
+      "marketText": "Growing demand for quality dairy products in Uttar Pradesh. Retail chains, sweet shops, and direct consumers. Competitive advantage: fresh, locally-sourced products with modern equipment.",
+      "processText": "Raw milk procurement → Chilling & storage → Pasteurization → Processing (ghee extraction, paneer making, yogurt culture) → Quality testing → Packaging → Distribution.",
+      "marketingText": "Direct sales to retailers and shops in Etah & Firozabad district. FMCG distributor tie-ups. Local sweet shops and restaurants. Future: e-commerce and branded retail presence."
+    };
+  </script>
+
+  <script src="http://localhost:3000/calc.js"></script>
+  <script src="http://localhost:3000/report.js"></script>
+  <script>
+    // Wait for scripts to load
+    setTimeout(() => {
+      try {
+        // Compute the financial model
+        const model = DPRCalc.compute(customerData);
+
+        if (model.errors.length > 0) {
+          alert('Errors in form data:\n' + model.errors.join('\n'));
+          return;
+        }
+
+        if (model.warnings.length > 0) {
+          console.warn('Warnings:', model.warnings);
+        }
+
+        // Generate HTML report
+        const reportHtml = DPRReport.render(model);
+        document.getElementById('report').innerHTML = reportHtml;
+        document.querySelector('p').textContent = 'Report generated! Use Print to save as PDF.';
+
+        // Print the report
+        setTimeout(() => { window.print(); }, 500);
+      } catch (err) {
+        alert('Error: ' + err.message + '\n' + err.stack);
+      }
+    }, 1000);
+  </script>
+</body>
+</html>
