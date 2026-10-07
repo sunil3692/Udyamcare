@@ -114,6 +114,63 @@
       'quality assurance, timely delivery, signboards and local advertising, and use of social media / WhatsApp Business ' +
       'and online listings (Google Business Profile, GeM / ONDC where applicable) to reach new customers.';
   }
+
+  // ---------- business write-up (template / user text / default) ----------
+  var TPL = root.DPRTemplates || (typeof require === 'function' ? require('./templates.js') : null);
+  function template(d) { return TPL && d.bizType ? TPL.get(d.bizType) : null; }
+  function paras(text) {
+    return String(text).split(/\n\s*\n/).map(function (p) { return p.trim(); }).filter(Boolean);
+  }
+  function introParas(d) {
+    if (d.introText) return paras(d.introText).map(esc);
+    var t = template(d);
+    if (t) return t.intro(TPL.ctx(d)).map(esc);
+    return null;
+  }
+  function marketPoints(d) {
+    if (d.marketPoints) {
+      return String(d.marketPoints).split(/\n/).map(function (l) { return l.replace(/^\s*[-•*\d.)]+\s*/, '').trim(); })
+        .filter(Boolean).map(function (l) {
+          var i = l.indexOf(':');
+          return i > 0 && i < 60 ? [l.slice(0, i).trim(), l.slice(i + 1).trim()] : ['', l];
+        });
+    }
+    var t = template(d);
+    return t ? t.market : null;
+  }
+  function marketHtml(d) {
+    var pts = marketPoints(d);
+    if (!pts) return '<p>' + (d.marketText ? esc(d.marketText) : defaultMarket(d)) + '</p>';
+    return (d.marketText ? '<p>' + esc(d.marketText) + '</p>' : '') + '<ul class="points">' + pts.map(function (p) {
+      return '<li>' + (p[0] ? '<b>' + esc(p[0]) + ':</b> ' : '') + esc(p[1]) + '</li>';
+    }).join('') + '</ul>';
+  }
+  function inputsText(d) {
+    if (d.inputsText) return paras(d.inputsText).map(esc);
+    var t = template(d);
+    return t ? [esc(t.inputs(TPL.ctx(d)))] : null;
+  }
+  function assetList(m) {
+    var names = m.d.machinery.map(function (mc) { return mc.name; });
+    ['building', 'furniture', 'electrical', 'computers', 'vehicle', 'land'].forEach(function (k) {
+      if (m.assets[k] > 0) names.push(m.assetLabels[k].toLowerCase());
+    });
+    if (names.length > 1) names = names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+    return names;
+  }
+  function label(d, key, dflt) {
+    var t = template(d);
+    return d[key] || (t && t[key]) || dflt;
+  }
+  function financePara(m) {
+    var d = m.d;
+    return 'The project envisages investment of ' + inr(m.fixedAssets + m.preopTotal) + ' in ' + esc(assetList(m)) +
+      (m.wcRequirement ? ', together with working capital of ' + inr(m.wcRequirement) + ' (' + esc(label(d, 'wcLabel', 'working capital')) + ')' : '') +
+      '. The project cost of ' + inr(m.totalCost) + ' (₹' + lakh(m.totalCost) + ' lakh) is proposed to be financed through the promoter\'s own contribution of ' +
+      inr(m.own) + ', a Term Loan of ' + inr(m.termLoan) + (m.wcLoan ? ' and a Cash Credit limit of ' + inr(m.wcLoan) : '') +
+      ', i.e. a total bank loan of ' + inr(m.bankLoan) + (m.subsidy ? ', with margin money subsidy of ' + inr(m.subsidy) : '') + '.';
+  }
+
   function approvals(d) {
     var list = ['Udyam Registration (MSME)', 'GST Registration (if turnover exceeds threshold / for B2B sales)',
       'Shop & Establishment / Trade Licence from local body', 'Current account with the financing bank'];
@@ -131,6 +188,7 @@
   }
 
   function render(m) {
+    if (m.simple) return renderSimple(m);
     var d = m.d, Y1 = m.years[0];
     var h = [];
     var schemeName = SCHEME_NAMES[d.scheme] || SCHEME_NAMES.OTHER;
@@ -206,18 +264,24 @@
     '</section>');
 
     // ---------- 3. Introduction ----------
+    var ip = introParas(d);
     h.push('<section>', H('Introduction &amp; Business Description'),
+      ip ? ip.map(function (p) { return '<p>' + p + '</p>'; }).join('') :
       '<p>The promoter proposes to set up a <b>' + esc(d.activity.toLowerCase()) + '</b> unit named <b>' + esc(d.unitName) +
       '</b> for <b>' + esc(d.productLine) + '</b> at ' + esc(location || 'the proposed location') + '. ' +
       'The unit will be registered as a Micro Enterprise under the MSMED Act, 2006 (Udyam). The project is proposed to be ' +
       'financed under the <b>' + esc(schemeName) + '</b>' + (d.bankName ? ' through ' + esc(d.bankName) : '') + '.</p>',
+      '<p>' + financePara(m) + '</p>',
       '<p>The project will generate direct employment for ' + employment + ' persons and indirect employment in raw-material ' +
       'supply, transport and marketing. The total cost of the project is <b>' + inr(m.totalCost) + '</b> (' + inWords(m.totalCost) + ').</p>',
       '</section>');
 
     // ---------- 4. Market ----------
-    h.push('<section>', H('Market Potential'), '<p>' + (d.marketText ? esc(d.marketText) : defaultMarket(d)) + '</p>',
+    h.push('<section>', H('Market Potential'), marketHtml(d),
       '<h3>Marketing strategy</h3><p>' + (d.marketingText ? esc(d.marketingText) : defaultMarketing(d)) + '</p>', '</section>');
+
+    var inp = inputsText(d);
+    if (inp) h.push('<section>', H('Raw Material / Inputs Description'), inp.map(function (p) { return '<p>' + p + '</p>'; }).join(''), '</section>');
 
     // ---------- 5. Process ----------
     h.push('<section>', H(d.activity === 'Manufacturing' ? 'Manufacturing Process' : d.activity === 'Service' ? 'Service Process' : 'Business Process'),
@@ -485,6 +549,281 @@
       'The bank is requested to sanction a term loan of <b>' + inr(m.termLoan) + '</b> and a working capital limit of <b>' + inr(m.wcLoan) + '</b>' +
       (m.subsidy ? ' under ' + (d.scheme === 'CMYUVA' ? 'CM YUVA' : 'PMEGP') + ' with margin money subsidy of ' + inr(m.subsidy) : '') + '.</p>',
       '<div class="sign"><div>Place: ' + esc(d.district || '') + '<br>Date: ____________</div><div>(' + esc(d.applicantName) + ')<br>Signature of Promoter</div></div>',
+      '</section>');
+
+    return h.join('\n');
+  }
+
+  // =====================================================================
+  // Simple bank format (14 sections, full rupee amounts)
+  // =====================================================================
+  function renderSimple(m) {
+    var d = m.d, Y1 = m.years[0], YN = m.years[m.N - 1];
+    var h = [], sec = 0;
+    function H(title) { sec++; return '<h2><span>' + sec + '.</span> ' + title + '</h2>'; }
+    function R(n) { return Math.round(n || 0).toLocaleString('en-IN'); }
+    function yr(label, fn, cls) { return yRow(m, label, function (Y) { return fn(Y); }, cls); }
+    function blank(label) { return { cls: 'head', cells: ['<b>' + label + '</b>'].concat(m.years.map(function () { return ''; })) }; }
+    var schemeName = SCHEME_NAMES[d.scheme] || SCHEME_NAMES.OTHER;
+    var location = [d.unitAddress, d.district, d.state].filter(Boolean).join(', ');
+    var father = d.fatherName ? (/^(s\/o|d\/o|w\/o)/i.test(d.fatherName) ? d.fatherName : (d.gender === 'Female' ? 'D/o ' : 'S/o ') + 'Sh. ' + d.fatherName) : '';
+    var varLabel = label(d, 'varLabel', 'Raw Material & Direct Expenses');
+    var fixedLabel = label(d, 'fixedLabel', 'Salary, Rent & Administrative Expenses');
+    var wcLabel = label(d, 'wcLabel', 'Working Capital (Stock)');
+    var staffNote = d.staff.length ? d.staff.map(function (s) { return s.count + ' ' + s.role; }).join(', ') : '';
+    var morTxt = m.loan.moratorium ? ' after ' + m.loan.moratorium + ' months moratorium' : '';
+    var showTax = m.years.some(function (Y) { return Y.tax > 0.5; });
+    var hasSub = d.scheme === 'CMYUVA' && m.subsidy;
+
+    // ---------- Cover ----------
+    h.push('<section class="cover">',
+      '<div class="cover-tag">DETAILED PROJECT REPORT</div>',
+      '<div class="cover-sub">(For Bank Loan Submission)</div>',
+      '<h1>' + esc(d.unitName) + '</h1>',
+      '<div class="cover-box">', kv([
+        ['Proprietor / Promoter', esc(d.applicantName) + (father ? '<br>' + esc(father) : '')],
+        ['Address', esc(d.resAddress || location)],
+        ['Nature of Business', esc(d.productLine)],
+        ['Scheme', esc(schemeName)],
+        ['Submitted to', esc([d.bankName, d.bankBranch].filter(Boolean).join(', '))]
+      ]), '</div>',
+      '<div class="cover-sub">Prepared for submission to the financing bank for Term Loan' + (m.wcLoan ? ' and Cash Credit' : '') + ' assistance</div>',
+      '<div class="cover-foot">Prepared with UdyamCare · ' + new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) + '</div>',
+      '</section>');
+
+    // ---------- 1. Introduction ----------
+    var ip = introParas(d) || [
+      esc(d.unitName) + ' is a proposed venture by ' + esc(d.applicantName) + (father ? ', ' + esc(father) : '') + ', resident of ' +
+      esc(d.resAddress || location) + ', to establish a ' + esc(d.activity.toLowerCase()) + ' unit for ' + esc(d.productLine) + ' at ' +
+      esc(location || 'the proposed location') + '.',
+      defaultMarket(d)
+    ];
+    h.push('<section>', H('Introduction'), ip.map(function (p) { return '<p>' + p + '</p>'; }).join(''), '<p>' + financePara(m) + '</p>', '</section>');
+
+    // ---------- 2. Market potential ----------
+    h.push('<section>', H('Market Potential'), marketHtml(d), '</section>');
+
+    // ---------- 3. Inputs ----------
+    var inp = inputsText(d) || [defaultProcess(d)];
+    h.push('<section>', H('Raw Material / Inputs Description'), inp.map(function (p) { return '<p>' + p + '</p>'; }).join(''), '</section>');
+
+    // ---------- 4. Top sheet ----------
+    var assetRows = [];
+    Object.keys(m.assets).forEach(function (k) {
+      if (m.assets[k] > 0) assetRows.push(['&nbsp;– ' + (k === 'machinery' ? 'Plant &amp; Machinery' : m.assetLabels[k]), inr(m.assets[k])]);
+    });
+    if (m.preopTotal) assetRows.push(['&nbsp;– Pre-operative expenses &amp; contingency', inr(m.preopTotal)]);
+    if (m.wcRequirement) assetRows.push(['&nbsp;– ' + esc(wcLabel), inr(m.wcRequirement)]);
+    var pc = function (v) { return m.totalCost ? (v / m.totalCost * 100).toFixed(1) + '%' : ''; };
+    h.push('<section>', H('Project at a Glance (Top Sheet)'), kv([
+      ['Name of Unit', esc(d.unitName)],
+      ['Name of Proprietor', esc(d.applicantName)],
+      ["Father's Name", esc(d.fatherName)],
+      ['Address', esc(location || d.resAddress)],
+      ['Constitution', esc(d.constitution)],
+      ['Nature of Activity', esc(d.productLine)],
+      ['Total Project Cost', inr(m.totalCost) + ' (₹' + lakh(m.totalCost) + ' Lakh)']
+    ].concat(assetRows).concat([
+      ['Own Contribution (Margin)', inr(m.own) + ' (' + pc(m.own) + ')' + (m.wcLoan ? ' – ' + inr(m.ownFixed) + ' on fixed assets + ' + inr(m.ownWC) + ' on WC' : '')],
+      ['Term Loan', inr(m.termLoan) + ' (' + pc(m.termLoan) + ')'],
+      m.wcLoan ? ['Cash Credit', inr(m.wcLoan) + ' (' + pc(m.wcLoan) + ')'] : ['', ''],
+      ['Total Bank Loan', inr(m.bankLoan) + ' (' + pc(m.bankLoan) + ')'],
+      m.subsidy ? ['Margin money subsidy', inr(m.subsidy)] : ['', ''],
+      d.scheme === 'MUDRA' ? ['MUDRA category', m.mudraCategory] : ['', ''],
+      ['Rate of Interest (assumed)', 'Term Loan ' + d.tlRate + '% p.a.' + (m.wcLoan ? '; Cash Credit ' + d.wcRate + '% p.a.' : '')],
+      ['Repayment Tenure (assumed)', d.tenureYears + ' years, equal principal instalments' + morTxt],
+      ['Average DSCR', ratio(m.avgDscr) + ' (bank norm 1.5 and above; see DSCR section)'],
+      ['Break-Even Point (Year 1)', pct(Y1.bep) + ' of sales'],
+      ['Employment Generated', 'Proprietor' + (staffNote ? ' + ' + esc(staffNote) : '')]
+    ])), '</section>');
+
+    // ---------- 5. Cost of project & means of finance ----------
+    var cost = d.machinery.map(function (mc) {
+      return [esc(mc.name) + (mc.qty !== 1 ? ' (' + qty(mc.qty) + ' × ' + inr(mc.rate) + ')' : ''), R(mc.qty * mc.rate), lakh(mc.qty * mc.rate)];
+    });
+    ['land', 'building', 'furniture', 'electrical', 'computers', 'vehicle'].forEach(function (k) {
+      if (m.assets[k] > 0) cost.push([m.assetLabels[k], R(m.assets[k]), lakh(m.assets[k])]);
+    });
+    if (d.preop) cost.push(['Pre-operative expenses', R(d.preop), lakh(d.preop)]);
+    if (m.contingency) cost.push(['Contingency @ ' + d.contingencyPct + '%', R(m.contingency), lakh(m.contingency)]);
+    cost.push({ cls: 'sub', cells: ['Fixed Assets (A)', R(m.fixedCapital), lakh(m.fixedCapital)] });
+    if (m.wcRequirement) cost.push([esc(wcLabel) + ' (B)', R(m.wcRequirement), lakh(m.wcRequirement)]);
+    cost.push({ cls: 'total', cells: ['Total Project Cost' + (m.wcRequirement ? ' (A + B)' : ''), R(m.totalCost), lakh(m.totalCost)] });
+    var mf = [
+      ['Own Contribution' + (m.wcLoan ? ' (' + inr(m.ownFixed) + ' on fixed assets + ' + inr(m.ownWC) + ' on WC)' : ''), R(m.own), pc(m.own)],
+      ['Term Loan (Fixed assets ' + inr(m.fixedCapital) + ' − Own ' + inr(m.ownFixed) + ')', R(m.termLoan), pc(m.termLoan)]
+    ];
+    if (m.wcLoan) mf.push(['Cash Credit Limit (WC ' + inr(m.wcRequirement) + ' − Own ' + inr(m.ownWC) + ')', R(m.wcLoan), pc(m.wcLoan)]);
+    mf.push({ cls: 'total', cells: ['Total Means of Finance', R(m.totalCost), '100.00%'] });
+    h.push('<section>', H('Cost of Project &amp; Means of Finance'),
+      '<h3>Cost of Project</h3>', table(['Cost Item', 'Amount (₹)', '₹ in Lakh'], cost, { cls: 'num-right' }),
+      '<p class="note">Equipment costs are estimated at prevailing local market rates; actual costs should be confirmed against vendor quotations at the time of procurement. ' + inWords(m.totalCost) + '.</p>',
+      '<h3>Means of Finance</h3>', table(['Means of Finance', 'Amount (₹)', '% of Cost'], mf, { cls: 'num-right' }));
+    if (m.subsidy) h.push('<p>Margin money subsidy of ' + inr(m.subsidy) + ' under ' + esc(schemeName) + ' is expected in addition, as per scheme guidelines.</p>');
+    h.push('</section>');
+
+    // ---------- 6. Repayment ----------
+    var rep = [
+      yr('Opening Balance (₹)', function (Y) { return R(Y.tlOpening); }),
+      yr('Instalment – Principal (₹)', function (Y) { return R(Y.tlRepaid); }),
+      yr('Interest @ ' + d.tlRate + '% p.a. (₹)', function (Y) { return R(Y.intTL); }),
+      yr('Total Instalment + Interest (₹)', function (Y) { return R(Y.debtService); }, 'sub'),
+      yr('Closing Balance (₹)', function (Y) { return R(Y.tlClosing); })
+    ];
+    h.push('<section class="wide">', H('Term Loan Repayment Schedule'),
+      '<p class="note">(Interest @ ' + d.tlRate + '% p.a. on reducing balance, ' + d.tenureYears + '-year tenure, equal principal instalments' + morTxt + '.' +
+      (m.wcLoan ? ' The Cash Credit limit of ' + inr(m.wcLoan) + ' is a revolving working capital facility @ ' + d.wcRate + '% p.a., renewable annually.' : '') + ')</p>',
+      table(yearHead(m), rep, { cls: 'num-right' }), '</section>');
+
+    // ---------- 7. Depreciation ----------
+    var dep = [];
+    m.depreciable.filter(function (k) { return m.assets[k] > 0; }).forEach(function (k) {
+      var r = Math.round(m.depRates[k] * 100);
+      dep.push(blank((k === 'machinery' ? 'Plant &amp; Machinery' : m.assetLabels[k]) + ' @ ' + r + '% WDV'));
+      dep.push(yr('Opening WDV (₹)', function (Y) { return R(Y.wdvOpening[k]); }));
+      dep.push(yr('Depreciation @ ' + r + '% (₹)', function (Y) { return R(Y.depByClass[k]); }));
+      dep.push(yr('Closing WDV (₹)', function (Y) { return R(Y.wdvClosing[k]); }));
+    });
+    dep.push(yr('Total Depreciation (₹)', function (Y) { return R(Y.dep); }, 'total'));
+    h.push('<section class="wide">', H('Depreciation Schedule'), '<p class="note">(WDV method at Income-tax rates)</p>',
+      table(yearHead(m), dep, { cls: 'num-right' }), '</section>');
+
+    // ---------- 8. Profitability ----------
+    var pl = [
+      yr('Sales / Revenue (₹)', function (Y) { return R(Y.sales); }),
+      yr('Less: ' + esc(varLabel) + ' (₹)', function (Y) { return R(Y.variableCost); }),
+      yr('Gross Profit (₹)', function (Y) { return R(Y.grossProfit); }, 'sub'),
+      yr('Less: ' + esc(fixedLabel) + ' (₹)', function (Y) { return R(Y.fixedExp); }),
+      yr('Less: Depreciation (₹)', function (Y) { return R(Y.dep); }),
+      m.preopTotal ? yr('Less: Pre-operative exp. written off (₹)', function (Y) { return R(Y.amort); }) : null,
+      yr('Less: Interest on Term Loan (₹)', function (Y) { return R(Y.intTL); }),
+      m.wcLoan ? yr('Less: Interest on Working Capital Loan (₹)', function (Y) { return R(Y.intWC); }) : null,
+      hasSub ? yr('Add: Interest subsidy (CM YUVA) (₹)', function (Y) { return R(Y.interestSubsidy); }) : null,
+      showTax ? yr('Profit before Tax (₹)', function (Y) { return R(Y.pbt); }, 'sub') : null,
+      showTax ? yr('Less: Income Tax (₹)', function (Y) { return R(Y.tax); }) : null,
+      yr('Net Profit (₹)', function (Y) { return R(Y.pat); }, 'total'),
+      yr('Add: Depreciation (non-cash)', function (Y) { return R(Y.dep + Y.amort); }),
+      yr('Cash Accruals (₹)', function (Y) { return R(Y.cashAccruals); }, 'sub')
+    ].filter(Boolean);
+    h.push('<section class="wide">', H('Projected Profitability Statement'),
+      '<p class="note">(Assumptions: sales ' + inr(d.sMonthlySales) + ' per month in Year 1, growing ' + d.sSalesGrowth + '% p.a.; ' + esc(varLabel.toLowerCase()) +
+      ' at ' + d.sVarPct + '% of sales; ' + esc(fixedLabel.toLowerCase()) + ' of ' + inr(d.sFixedExp) + ' in Year 1, growing ' + d.sFixedGrowth + '% p.a.' +
+      (showTax ? '' : ' Income is within the tax rebate limit, so no income tax is provided.') + ')</p>',
+      table(yearHead(m), pl, { cls: 'num-right' }), '</section>');
+
+    // ---------- 9. Balance sheet ----------
+    var bs = [
+      blank('Sources of Funds'),
+      yr("Proprietor's Capital (₹)", function (Y) { return R(Y.capital); }),
+      m.subsidy ? yr('Capital Subsidy (₹)', function (Y) { return R(Y.subsidyReserve); }) : null,
+      yr('Term Loan (₹)', function (Y) { return R(Y.tlClosing); }),
+      m.wcLoan ? yr('Working Capital Loan (₹)', function (Y) { return R(Y.wcLoan); }) : null,
+      d.sCreditors ? yr('Sundry Creditors (₹)', function (Y) { return R(Y.creditors); }) : null,
+      yr('Total Sources (₹)', function (Y) { return R(Y.totalLiabilities); }, 'total'),
+      blank('Application of Funds'),
+      yr('Net Fixed Assets (WDV) (₹)', function (Y) { return R(Y.netBlock); }),
+      m.preopTotal ? yr('Pre-operative exp. not written off (₹)', function (Y) { return R(Y.preopLeft); }) : null,
+      yr('Current Assets (Stock + Cash &amp; Bank) (₹)', function (Y) { return R(Y.currentAssets); }),
+      yr('Total Application (₹)', function (Y) { return R(Y.totalAssets); }, 'total')
+    ].filter(Boolean);
+    h.push('<section class="wide">', H('Projected Balance Sheet'), table(yearHead(m), bs, { cls: 'num-right' }),
+      '<p class="note">Drawings: ' + (d.sDrawPct > 0 ? d.sDrawPct + '% of net profit each year' : inr(d.drawings) + ' per year') + '.</p>', '</section>');
+
+    // ---------- 10. Cash flow ----------
+    var cf = [
+      yr('Opening Cash Balance (₹)', function (Y) { return R(Y.openingCash); }),
+      yr('Add: Sources (Loans, Capital, Cash Accruals, Creditors) (₹)', function (Y) { return R(Y.cfSources); }),
+      yr('Less: Application (Assets, Loan Repayment, Drawings) (₹)', function (Y) { return R(Y.cfUses); }),
+      yr('Closing Cash Balance (₹)', function (Y) { return R(Y.closingCash); }, 'total')
+    ];
+    h.push('<section class="wide">', H('Projected Cash Flow Statement'), table(yearHead(m), cf, { cls: 'num-right' }), '</section>');
+
+    // ---------- 11. BEP ----------
+    var be = [
+      yr('Fixed Cost (₹)', function (Y) { return R(Y.fixedCost); }),
+      yr('Variable Cost (₹)', function (Y) { return R(Y.variableCost); }),
+      yr('Contribution (₹)', function (Y) { return R(Y.contribution); }),
+      yr('Contribution Ratio (%)', function (Y) { return pct(Y.contributionRatio); }),
+      yr('Break-Even Sales (₹)', function (Y) { return Y.bepSales !== null ? R(Y.bepSales) : '—'; }),
+      yr('Break-Even Point (% of Sales)', function (Y) { return pct(Y.bep); }, 'total'),
+      yr('Net Profit Ratio (%)', function (Y) { return pct(Y.npMargin); })
+    ];
+    h.push('<section class="wide">', H('Break-Even Point Analysis'), table(yearHead(m), be, { cls: 'num-right' }),
+      '<p class="note">Fixed cost = ' + esc(fixedLabel.toLowerCase()) + ' + depreciation + interest. Break-even sales = fixed cost ÷ contribution ratio.</p>', '</section>');
+
+    // ---------- 12. DSCR ----------
+    var ds = [
+      yr('Net Profit (₹)', function (Y) { return R(Y.pat); }),
+      yr('Add: Depreciation (₹)', function (Y) { return R(Y.dep + Y.amort); }),
+      yr('Add: Interest on Term Loan (₹)', function (Y) { return R(Y.intTL); }),
+      yr('Total (A) (₹)', function (Y) { return R(Y.dscrNum); }, 'sub'),
+      yr('Instalment of Term Loan (₹)', function (Y) { return R(Y.tlRepaid); }),
+      yr('Interest on Term Loan (₹)', function (Y) { return R(Y.intTL); }),
+      yr('Total (B) (₹)', function (Y) { return R(Y.debtService); }, 'sub'),
+      yr('DSCR (A / B)', function (Y) { return ratio(Y.dscr); }, 'total')
+    ];
+    h.push('<section class="wide">', H('Calculation of DSCR'), '<p class="note">(DSCR computed on Term Loan obligations, as per standard bank practice.)</p>',
+      table(yearHead(m), ds, { cls: 'num-right' }), '<p><b>Average DSCR: ' + ratio(m.avgDscr) + '</b></p>', '</section>');
+
+    // ---------- 13. Ratios ----------
+    var rt = m.ratios;
+    var ra = [
+      blank('A. Debt-Equity Ratio (Total Debt / Proprietor\'s Capital)'),
+      yr('Term Loan Outstanding (₹)', function (Y) { return R(Y.tlClosing); }),
+      m.wcLoan ? yr('Working Capital Loan (₹)', function (Y) { return R(Y.wcLoan); }) : null,
+      yr('Total Debt (₹)', function (Y) { return R(Y.totalDebt); }),
+      yr("Proprietor's Capital / Net Worth (₹)", function (Y) { return R(Y.capital + Y.subsidyReserve); }),
+      yr('Debt-Equity Ratio', function (Y) { return Y.debtEquity === null ? '—' : ratio(Y.debtEquity) + ' : 1'; }, 'sub'),
+      blank('B. Debt Service Coverage Ratio'),
+      yr('Net Profit + Depreciation + Interest (A) (₹)', function (Y) { return R(Y.dscrNum); }),
+      yr('Instalment + Interest (B) (₹)', function (Y) { return R(Y.debtService); }),
+      yr('DSCR (A / B)', function (Y) { return ratio(Y.dscr); }, 'sub'),
+      blank('C. Current Ratio (Current Assets / Current Liabilities)'),
+      yr('Current Assets – Stock + Cash &amp; Bank (₹)', function (Y) { return R(Y.currentAssets); }),
+      yr('Current Liabilities – WC Loan + Creditors (₹)', function (Y) { return R(Y.currLiab); }),
+      yr('Current Ratio', function (Y) { return Y.currentRatio === null ? '—' : ratio(Y.currentRatio) + ' : 1'; }, 'sub')
+    ].filter(Boolean);
+    function pos(from) { return from === null ? 'Below norm' : from === 1 ? 'Meets norm in all years' : 'Meets norm from Year ' + from; }
+    var summary = [
+      ['Debt-Equity Ratio', rt.avgDE === null ? '—' : ratio(rt.avgDE) + ' : 1', 'Below 3 : 1', pos(rt.deFrom)],
+      ['Debt Service Coverage Ratio', ratio(rt.avgDscr), '1.50 and above', pos(rt.dscrFrom)],
+      ['Current Ratio', rt.avgCR === null ? '—' : ratio(rt.avgCR) + ' : 1', '1.33 and above', rt.avgCR === null ? 'Not applicable' : pos(rt.crFrom)]
+    ];
+    h.push('<section class="wide">', H('Ratio Analysis'),
+      '<p class="note">Debt-Equity = (Term Loan outstanding + Cash Credit) ÷ Proprietor\'s Capital. DSCR = (Net Profit + Depreciation + Interest on Term Loan) ÷ (Term Loan Instalment + Interest). ' +
+      'Current Ratio = (Stock + Cash &amp; Bank) ÷ (Cash Credit + Sundry Creditors).</p>',
+      table(yearHead(m), ra, { cls: 'num-right' }),
+      '<h3>Summary of Key Ratios</h3>', table(['Ratio', 'Average (' + m.N + ' Years)', 'Bank Benchmark', 'Position'], summary), '</section>');
+
+    // ---------- 14. Viability ----------
+    var lowYears = m.years.filter(function (Y) { return Y.dscr !== null && Y.dscr < 1.5; }).map(function (Y) { return Y.year; });
+    var dscrSeq = m.years.filter(function (Y) { return Y.dscr !== null; }).map(function (Y) { return ratio(Y.dscr); });
+    var v = '<p>The project envisages a total outlay of ₹' + lakh(m.totalCost) + ' Lakh for setting up ' + esc(d.unitName) +
+      (location ? ' at ' + esc(location) : '') + ', comprising fixed assets of ₹' + lakh(m.fixedCapital) + ' Lakh' +
+      (m.wcRequirement ? ' and working capital of ₹' + lakh(m.wcRequirement) + ' Lakh' : '') + ', financed through the promoter\'s own contribution of ₹' +
+      lakh(m.own) + ' Lakh, a Term Loan of ₹' + lakh(m.termLoan) + ' Lakh' + (m.wcLoan ? ' and a Cash Credit limit of ₹' + lakh(m.wcLoan) + ' Lakh' : '') +
+      ' (total bank loan ₹' + lakh(m.bankLoan) + ' Lakh). With projected sales of ₹' + lakh(Y1.sales) + ' Lakh in Year 1 (' + inr(d.sMonthlySales) +
+      ' per month), the Break-Even Point is ' + pct(Y1.bep) + ' of sales in Year 1, ' + (YN.bep !== null && Y1.bep !== null && YN.bep < Y1.bep ? 'improving to ' : 'and ') +
+      pct(YN.bep) + ' by Year ' + m.N + '. The Debt Service Coverage Ratio over the repayment years is ' + dscrSeq.join(', ') +
+      ', giving an Average DSCR of ' + ratio(m.avgDscr) + '.</p>';
+    var cashOk = m.years.every(function (Y) { return Y.closingCash >= 0; });
+    var tally = m.years.every(function (Y) { return Math.abs(Y.bsDiff) < 1; });
+    v += '<p>' + (cashOk ? 'The unit remains cash-positive in every year' : 'The unit shows a cash shortfall in some years') +
+      (tally ? ', and the projected balance sheet and cash flow statement tally in all years. ' : '. ');
+    if (m.viability === 'VIABLE') {
+      v += 'The project is therefore considered <b>TECHNICALLY FEASIBLE AND FINANCIALLY VIABLE</b>, and may be recommended for sanction of the Term Loan of ' +
+        inr(m.termLoan) + (m.wcLoan ? ' and Cash Credit limit of ' + inr(m.wcLoan) : '') + ' as proposed.</p>';
+    } else if (m.viability === 'CONDITIONALLY VIABLE') {
+      v += 'DSCR is below the usual bank benchmark of 1.5 in Year ' + lowYears.join(', ') + ', mainly because of the term loan instalment' +
+        (m.wcLoan ? ' and the interest on the Cash Credit limit' : '') + ' in the early years. The project is therefore considered <b>CONDITIONALLY VIABLE</b>: ' +
+        'it meets the bank benchmark from Year ' + (rt.dscrFrom || '—') + ' onward, and the bank may consider a moratorium of 6 months on term loan principal, ' +
+        'or a slightly longer repayment tenure, to ease the early debt-servicing position. Subject to this, and to verification of the promoter\'s credentials, ' +
+        'the project may be recommended for sanction of the Term Loan of ' + inr(m.termLoan) + (m.wcLoan ? ' and Cash Credit limit of ' + inr(m.wcLoan) : '') + ' as proposed.</p>';
+    } else {
+      v += 'The average DSCR is below the bank benchmark of 1.5; the projections should be revisited (sales, costs, loan amount or tenure) before submission.</p>';
+    }
+    h.push('<section>', H('Viability Remark'), v,
+      '<div class="sign"><div>Place: ' + esc(d.district || '') + '<br>Date: ____________</div><div>(' + esc(d.applicantName) + ')<br>Signature of Proprietor</div></div>',
       '</section>');
 
     return h.join('\n');

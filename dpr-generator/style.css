@@ -130,3 +130,9 @@ table.fin tr.head td { background: transparent; padding-top: 10px; }
   table.fin tr.sub td, table.fin tr.total td, table.kv th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   tr { page-break-inside: avoid; }
 }
+
+/* Report format & business type */
+.format-box { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; align-items: end;
+  border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+[data-only].off { display: none; }
+ul.points li { margin-bottom: 6px; }
