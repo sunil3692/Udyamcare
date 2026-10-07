@@ -53,6 +53,7 @@
       (data[k] && data[k].length ? data[k] : [null]).forEach(function (r) { addRow(ROW_TABLES[k], r); });
     });
     if (data.ownPct === undefined || data.ownPct === '') applySchemeDefaults();
+    form.elements.tlRate.value = form.elements.wcRate.value = DPRCalc.INTEREST_RATE; // fixed, old saved files may carry other rates
     applyFormat();
   }
 
@@ -120,7 +121,7 @@
       unitName: 'Shree Ram Flour Mill', constitution: 'Proprietorship', activity: 'Manufacturing',
       productLine: 'Wheat flour (atta), besan and spices grinding', unitAddress: 'Main Road, Village Rampur',
       district: 'Jhansi', state: 'Uttar Pradesh', area: 'Rural', premises: 'Rented', premisesArea: '800',
-      scheme: 'PMEGP', bankName: 'State Bank of India', bankBranch: 'Rampur', tlRate: '10.5', wcRate: '11',
+      scheme: 'PMEGP', bankName: 'State Bank of India', bankBranch: 'Rampur',
       tenureYears: '7', moratorium: '6', land: '0', building: '250000', furniture: '25000', electrical: '60000',
       computers: '0', vehicle: '0', preop: '20000', contingencyPct: '2',
       utilisation: '60,65,70,75,80', priceEsc: '3', costEsc: '4', years: '5', salaryInc: '5',
@@ -149,7 +150,7 @@
       unitName: 'Glow Beauty Parlour & Spa', constitution: 'Proprietorship', activity: 'Service',
       productLine: 'Beauty parlour, bridal makeup and spa services', unitAddress: 'Shop No. 12, Station Road',
       district: 'Sitapur', state: 'Uttar Pradesh', area: 'Urban', premises: 'Rented', premisesArea: '450',
-      scheme: 'MUDRA', bankName: 'Punjab National Bank', bankBranch: 'Station Road', tlRate: '10', wcRate: '11',
+      scheme: 'MUDRA', bankName: 'Punjab National Bank', bankBranch: 'Station Road',
       tenureYears: '5', moratorium: '3', land: '0', building: '120000', furniture: '90000', electrical: '40000',
       computers: '30000', vehicle: '0', preop: '15000', contingencyPct: '2',
       utilisation: '55,60,65,70,75', priceEsc: '5', costEsc: '5', years: '5', salaryInc: '6',
@@ -176,7 +177,7 @@
       unitName: 'Raja Borewell Drilling Works', constitution: 'Proprietorship', activity: 'Service',
       productLine: 'Borewell drilling & casing-pipe installation service', unitAddress: 'Rajmau',
       district: 'Kasganj', state: 'Uttar Pradesh', area: 'Rural', premises: 'Owned',
-      scheme: 'OTHER', ownPct: '15', subsidyPct: '0', tlRate: '11', wcRate: '12', tenureYears: '4', moratorium: '0',
+      scheme: 'OTHER', ownPct: '15', subsidyPct: '0', tenureYears: '4', moratorium: '0',
       wcOverride: '200000', land: '0', building: '0', furniture: '25000', electrical: '0', computers: '0', vehicle: '0',
       preop: '0', contingencyPct: '0',
       sMonthlySales: '42000', sSalesGrowth: '15', sVarPct: '45', sFixedExp: '138000', sFixedGrowth: '8',

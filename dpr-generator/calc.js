@@ -16,6 +16,8 @@
     computers: 'Computer / IT Equipment', vehicle: 'Vehicle'
   };
   var PREOP_AMORT_YEARS = 5;
+  // Interest on term loan and working capital is always taken at 10% p.a. (UdyamCare standard)
+  var INTEREST_RATE = 10;
   var PMEGP_SUBSIDY_LOCK_MONTHS = 36;
   // CM YUVA (Uttar Pradesh): margin money subsidy 10% of project cost (max ₹50,000),
   // 100% interest subsidy for 4 years, loan up to ₹5 lakh
@@ -154,6 +156,8 @@
       'termLoanAmt', 'wcLoanAmt', 'wcOverride',
       'sMonthlySales', 'sSalesGrowth', 'sVarPct', 'sFixedExp', 'sFixedGrowth', 'sDrawPct', 'sCreditors'];
     numeric.forEach(function (k) { d[k] = num(raw[k]); });
+    d.tlRate = INTEREST_RATE;
+    d.wcRate = INTEREST_RATE;
     d.machinery = (raw.machinery || []).filter(function (r) { return r.name || num(r.rate); })
       .map(function (r) { return { name: r.name || 'Equipment', qty: num(r.qty, 1), rate: num(r.rate), supplier: r.supplier || '' }; });
     d.products = (raw.products || []).filter(function (r) { return r.name || num(r.capacity); })
@@ -618,7 +622,7 @@
     };
   }
 
-  var api = { compute: compute, schemeDefaults: schemeDefaults, incomeTax: incomeTax, loanSchedule: loanSchedule, simpleLoanSchedule: simpleLoanSchedule };
+  var api = { INTEREST_RATE: INTEREST_RATE, compute: compute, schemeDefaults: schemeDefaults, incomeTax: incomeTax, loanSchedule: loanSchedule, simpleLoanSchedule: simpleLoanSchedule };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.DPRCalc = api;
 })(this);

@@ -20,7 +20,7 @@ Data browser me auto-save hota hai; `Save data (.json)` se file download karke b
   sales ka %, ek fixed kharcha figure + growth, stock-type working capital, Term Loan + Cash Credit. Sections:
   Introduction, Market Potential, Raw Material / Inputs, Top Sheet, Cost & Means of Finance, Repayment, Depreciation,
   Profitability, Balance Sheet, Cash Flow, Break-even, DSCR, Ratio Analysis (summary vs bank benchmark), Viability Remark.
-  "Sample: Borewell" button Raja Borewell DPR ke saare numbers exact deta hai.
+  "Sample: Borewell" button Raja Borewell DPR ka data load karta hai (interest 10% par).
 
 **Business type template** (borewell, computer coaching, restaurant, Jan Seva Kendra, shuttering store, e-rickshaw)
 chunne par Introduction, Market Potential points aur Raw Material / Inputs ka detailed text applicant ke naam / jagah ke
@@ -35,6 +35,7 @@ Balance sheet, Cash flow, Depreciation (WDV), Term-loan repayment schedule, DSCR
 (current ratio, D/E, ROCE, payback, project IRR), SWOT, Statutory approvals, Assumptions, Conclusion.
 
 ## Calculation rules (short)
+- **Interest:** term loan aur working capital (CC) dono par hamesha **10% p.a.** fix — form me badla nahi ja sakta.
 - **Scheme defaults:** PMEGP own contribution 10% (General) / 5% (special category); subsidy 15/25% (General
   urban/rural), 25/35% (special category urban/rural). MUDRA 10%, CGTMSE & Stand-Up 15%, others 20%.
 - **CM YUVA (UP):** own margin General 15%, OBC 12.5%, SC/ST/Divyang or aspirational district 10%;
