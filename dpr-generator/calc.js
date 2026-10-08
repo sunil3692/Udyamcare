@@ -16,6 +16,8 @@
     computers: 'Computer / IT Equipment', vehicle: 'Vehicle'
   };
   var PREOP_AMORT_YEARS = 5;
+  // Interest on term loan and working capital is always taken at 10% p.a. (UdyamCare standard)
+  var INTEREST_RATE = 10;
   var PMEGP_SUBSIDY_LOCK_MONTHS = 36;
   // CM YUVA (Uttar Pradesh): margin money subsidy 10% of project cost (max ₹50,000),
   // 100% interest subsidy for 4 years, loan up to ₹5 lakh
@@ -151,8 +153,11 @@
       'moratorium', 'land', 'building', 'furniture', 'electrical', 'computers', 'vehicle', 'preop',
       'contingencyPct', 'priceEsc', 'costEsc', 'years', 'salaryInc', 'rent', 'power', 'otherExp',
       'repairsPct', 'insurancePct', 'sellingPct', 'rmDays', 'fgDays', 'debtorDays', 'creditorDays', 'drawings',
-      'termLoanAmt', 'wcLoanAmt', 'wcOverride'];
+      'termLoanAmt', 'wcLoanAmt', 'wcOverride',
+      'sMonthlySales', 'sSalesGrowth', 'sVarPct', 'sFixedExp', 'sFixedGrowth', 'sDrawPct', 'sCreditors'];
     numeric.forEach(function (k) { d[k] = num(raw[k]); });
+    d.tlRate = INTEREST_RATE;
+    d.wcRate = INTEREST_RATE;
     d.machinery = (raw.machinery || []).filter(function (r) { return r.name || num(r.rate); })
       .map(function (r) { return { name: r.name || 'Equipment', qty: num(r.qty, 1), rate: num(r.rate), supplier: r.supplier || '' }; });
     d.products = (raw.products || []).filter(function (r) { return r.name || num(r.capacity); })
@@ -169,6 +174,7 @@
 
   function validate(d) {
     var errs = [];
+    if (d.reportFormat === 'simple') return validateSimple(d);
     if (!d.applicantName) errs.push('Applicant name bharein.');
     if (!d.unitName) errs.push('Business / unit name bharein.');
     if (!d.productLine) errs.push('Product / service line bharein.');
@@ -186,6 +192,7 @@
     var d = normalise(raw);
     var errors = validate(d);
     if (errors.length) return { errors: errors, d: d };
+    if (d.reportFormat === 'simple') return computeSimple(d);
 
     var N = Math.min(10, Math.max(d.years, Math.ceil(d.tenureYears)));
     var pe = d.priceEsc / 100, ce = d.costEsc / 100, si = d.salaryInc / 100;
@@ -406,7 +413,216 @@
     };
   }
 
-  var api = { compute: compute, schemeDefaults: schemeDefaults, incomeTax: incomeTax, loanSchedule: loanSchedule };
+  // =====================================================================
+  // Simple bank format: sales per month with yearly growth, variable cost as % of sales,
+  // one fixed-expense figure with yearly growth, stock-type working capital,
+  // term loan repaid in equal principal instalments with interest on the yearly opening balance,
+  // drawings as % of net profit, DSCR on term loan and its simple average over the repayment years.
+  // =====================================================================
+  function validateSimple(d) {
+    var errs = [];
+    if (!d.applicantName) errs.push('Applicant name bharein.');
+    if (!d.unitName) errs.push('Business / unit name bharein.');
+    if (!d.productLine) errs.push('Product / service line bharein.');
+    if (!d.machinery.length) errs.push('Kam se kam ek machine / equipment ki rate bharein.');
+    if (!d.sMonthlySales) errs.push('Simple format: pehle saal ki monthly sales bharein.');
+    if (d.sVarPct < 0 || d.sVarPct >= 100) errs.push('Simple format: variable cost 0–99% of sales ke beech hona chahiye.');
+    if (d.ownPct < 0 || d.ownPct >= 100) errs.push('Own contribution 0–99% ke beech hona chahiye.');
+    if (d.moratorium >= d.tenureYears * 12) errs.push('Moratorium repayment period se kam hona chahiye.');
+    return errs;
+  }
+
+  // Year-wise principal: equal monthly share after the moratorium, summed per year.
+  // Interest: rate on the opening balance of each year (bank-format annual working).
+  function simpleLoanSchedule(amount, ratePct, tenureYears, moratorium, years) {
+    var totalMonths = Math.round(tenureYears * 12);
+    var mor = Math.min(moratorium, totalMonths - 1);
+    var repayMonths = totalMonths - mor;
+    var rows = [], bal = amount;
+    for (var y = 1; y <= years; y++) {
+      var months = 0;
+      for (var m = 12 * (y - 1) + 1; m <= 12 * y; m++) if (m > mor && m <= totalMonths) months++;
+      var principal = Math.min(bal, amount * months / repayMonths);
+      var interest = bal * ratePct / 100;
+      var closing = bal - principal;
+      if (closing < 0.5) closing = 0;
+      rows.push({ year: y, opening: bal, interest: interest, principal: principal, subsidyAdj: 0, closing: closing });
+      bal = closing;
+    }
+    return { rows: rows, instalment: amount / repayMonths * 12, repayMonths: repayMonths, totalMonths: totalMonths, moratorium: mor };
+  }
+
+  function computeSimple(d) {
+    // Projection covers the full repayment period (incl. moratorium)
+    var N = Math.min(10, Math.max(3, Math.ceil(d.tenureYears + d.moratorium / 12 - 1e-9)));
+
+    var machineryCost = d.machinery.reduce(function (s, m) { return s + m.qty * m.rate; }, 0);
+    var assets = {
+      land: d.land, building: d.building, machinery: machineryCost, furniture: d.furniture,
+      electrical: d.electrical, computers: d.computers, vehicle: d.vehicle
+    };
+    var depreciable = ['building', 'machinery', 'furniture', 'electrical', 'computers', 'vehicle'];
+    var fixedAssets = Object.keys(assets).reduce(function (s, k) { return s + assets[k]; }, 0);
+    var contingency = depreciable.reduce(function (s, k) { return s + assets[k]; }, 0) * d.contingencyPct / 100;
+    var preopTotal = d.preop + contingency;
+    var fixedCapital = fixedAssets + preopTotal;
+    var wcRequirement = d.wcOverride;
+    var totalCost = fixedCapital + wcRequirement;
+
+    // Margin on each head separately (fixed capital → term loan, working capital → cash credit)
+    var ownPct = d.ownPct / 100;
+    var termLoan = fixedCapital * (1 - ownPct);
+    var wcLoan = wcRequirement * (1 - ownPct);
+    var fixedLoans = d.termLoanAmt > 0 || d.wcLoanAmt > 0;
+    if (fixedLoans) {
+      termLoan = d.termLoanAmt;
+      wcLoan = d.wcLoanAmt;
+    }
+    var own = totalCost - termLoan - wcLoan;
+    if (own < 0) {
+      return { errors: ['Term loan + working capital loan (' + Math.round(termLoan + wcLoan) + ') project cost (' +
+        Math.round(totalCost) + ') se zyada hai.'], d: d };
+    }
+    var ownFixed = fixedCapital - termLoan, ownWC = wcRequirement - wcLoan;
+    var bankLoan = termLoan + wcLoan;
+    var subsidy = 0;
+    if (d.scheme === 'PMEGP') subsidy = totalCost * d.subsidyPct / 100;
+    if (d.scheme === 'CMYUVA') subsidy = Math.min(totalCost * d.subsidyPct / 100, CMYUVA_SUBSIDY_CAP);
+
+    var loan = simpleLoanSchedule(termLoan, d.tlRate, d.tenureYears, d.moratorium, N);
+
+    var wdv = {}; depreciable.forEach(function (k) { wdv[k] = assets[k]; });
+    var preopLeft = preopTotal, preopAmort = preopTotal / PREOP_AMORT_YEARS;
+    var g = d.sSalesGrowth / 100, fg = d.sFixedGrowth / 100, vp = d.sVarPct / 100;
+    var lossCF = 0, capital = own, cash = 0;
+    var years = [];
+
+    for (var y = 1; y <= N; y++) {
+      var Y = { year: y, util: 1 };
+      var L = loan.rows[y - 1];
+      Y.sales = d.sMonthlySales * 12 * Math.pow(1 + g, y - 1);
+      Y.variableCost = Y.sales * vp;
+      Y.grossProfit = Y.sales - Y.variableCost;
+      Y.fixedExp = d.sFixedExp * Math.pow(1 + fg, y - 1);
+
+      Y.wdvOpening = {}; Y.depByClass = {}; Y.dep = 0;
+      depreciable.forEach(function (k) {
+        Y.wdvOpening[k] = wdv[k];
+        var dep = wdv[k] * DEP_RATES[k];
+        Y.depByClass[k] = dep; Y.dep += dep; wdv[k] -= dep;
+      });
+      Y.wdvClosing = {}; depreciable.forEach(function (k) { Y.wdvClosing[k] = wdv[k]; });
+      Y.amort = Math.min(preopAmort, preopLeft); preopLeft -= Y.amort;
+
+      Y.intTL = L.interest;
+      Y.intWC = wcLoan * d.wcRate / 100;
+      Y.interest = Y.intTL + Y.intWC;
+      Y.interestSubsidy = d.scheme === 'CMYUVA' && y <= CMYUVA_INTEREST_YEARS ? Y.interest : 0;
+      Y.pbt = Y.grossProfit - Y.fixedExp - Y.dep - Y.amort - Y.interest + Y.interestSubsidy;
+      var taxable = Y.pbt - lossCF;
+      if (taxable < 0) { lossCF = -taxable; taxable = 0; } else { lossCF = 0; }
+      Y.tax = incomeTax(d.constitution, taxable);
+      Y.pat = Y.pbt - Y.tax;
+      Y.cashAccruals = Y.pat + Y.dep + Y.amort;
+      Y.drawings = d.sDrawPct > 0 ? Math.max(0, Y.pat) * d.sDrawPct / 100 : d.drawings;
+
+      Y.tlOpening = L.opening; Y.tlRepaid = L.principal; Y.tlClosing = L.closing;
+      Y.creditors = d.sCreditors;
+      Y.stock = wcRequirement;
+
+      // Cash flow
+      Y.openingCash = cash;
+      if (y === 1) {
+        Y.cfSources = termLoan + wcLoan + own + subsidy + Y.cashAccruals + Y.creditors;
+        Y.cfUses = fixedAssets + preopTotal + wcRequirement + Y.tlRepaid + Y.drawings;
+      } else {
+        Y.cfSources = Y.cashAccruals;
+        Y.cfUses = Y.tlRepaid + Y.drawings;
+      }
+      cash += Y.cfSources - Y.cfUses;
+      Y.closingCash = cash;
+
+      // Balance sheet
+      capital += Y.pat - Y.drawings;
+      Y.capital = capital;
+      Y.subsidyReserve = subsidy;
+      Y.wcLoan = wcLoan;
+      Y.totalLiabilities = Y.capital + Y.subsidyReserve + Y.tlClosing + Y.wcLoan + Y.creditors;
+      Y.netBlock = depreciable.reduce(function (s, k) { return s + wdv[k]; }, 0) + assets.land;
+      Y.preopLeft = preopLeft;
+      Y.currentAssets = Y.stock + Y.closingCash;
+      Y.totalAssets = Y.netBlock + Y.preopLeft + Y.currentAssets;
+      Y.bsDiff = Y.totalAssets - Y.totalLiabilities;
+
+      // Break-even
+      Y.fixedCost = Y.fixedExp + Y.dep + Y.amort + Y.interest - Y.interestSubsidy;
+      Y.contribution = Y.grossProfit;
+      Y.contributionRatio = Y.sales ? Y.contribution / Y.sales : 0;
+      Y.bep = Y.contributionRatio > 0 ? Y.fixedCost / Y.contribution : null;
+      Y.bepSales = Y.bep !== null ? Y.fixedCost / Y.contributionRatio : null;
+      Y.npMargin = Y.sales ? Y.pat / Y.sales : 0;
+
+      // Ratios
+      Y.debtService = Y.intTL + Y.tlRepaid;
+      Y.dscrNum = Y.pat + Y.dep + Y.amort + Y.intTL;
+      Y.dscr = Y.debtService > 0 && Y.tlRepaid > 0 ? Y.dscrNum / Y.debtService : null;
+      Y.totalDebt = Y.tlClosing + Y.wcLoan;
+      var netWorth = Y.capital + Y.subsidyReserve;
+      Y.debtEquity = netWorth > 0 ? Y.totalDebt / netWorth : null;
+      var currLiab = Y.wcLoan + Y.creditors;
+      Y.currLiab = currLiab;
+      Y.currentRatio = currLiab > 0 ? Y.currentAssets / currLiab : null;
+      years.push(Y);
+    }
+
+    function avg(key) {
+      var v = years.filter(function (Y) { return Y[key] !== null; }).map(function (Y) { return Y[key]; });
+      return v.length ? v.reduce(function (s, x) { return s + x; }, 0) / v.length : null;
+    }
+    // First year from which the ratio meets the benchmark in every later year (null = never)
+    function meetsFrom(key, ok) {
+      var from = null;
+      for (var i = years.length - 1; i >= 0; i--) {
+        if (years[i][key] === null) continue;
+        if (ok(years[i][key])) from = years[i].year; else break;
+      }
+      return from;
+    }
+    var dscrYears = years.filter(function (Y) { return Y.dscr !== null; });
+    var avgDscr = avg('dscr');
+    var minDscr = dscrYears.length ? Math.min.apply(null, dscrYears.map(function (Y) { return Y.dscr; })) : null;
+    var ratios = {
+      avgDE: avg('debtEquity'), avgCR: avg('currentRatio'), avgDscr: avgDscr,
+      deFrom: meetsFrom('debtEquity', function (v) { return v < 3; }),
+      crFrom: meetsFrom('currentRatio', function (v) { return v >= 1.33; }),
+      dscrFrom: meetsFrom('dscr', function (v) { return v >= 1.5; })
+    };
+    var viability = avgDscr === null ? 'NOT ASSESSED' :
+      avgDscr >= 1.5 && minDscr >= 1.5 && years[0].pat > 0 ? 'VIABLE' :
+      avgDscr >= 1.5 && years.every(function (Y) { return Y.closingCash >= 0; }) ? 'CONDITIONALLY VIABLE' : 'NEEDS REVISION';
+
+    var warnings = [];
+    if (!wcRequirement) warnings.push('Simple format me working capital (stock) requirement khali hai — Cash Credit zero maana gaya.');
+    if (avgDscr !== null && avgDscr < 1.5) warnings.push('Average DSCR ' + avgDscr.toFixed(2) + ' hai — bank aam taur par 1.5 se upar dekhte hain.');
+    else if (minDscr !== null && minDscr < 1.5) warnings.push('Kisi saal DSCR ' + minDscr.toFixed(2) + ' hai (1.5 se kam). Moratorium ya lamba tenure consider karein.');
+    if (years.some(function (Y) { return Y.closingCash < 0; })) warnings.push('Kisi saal closing cash negative aa raha hai — drawings ya kharche ghatayein.');
+    if (years[0].pat < 0) warnings.push('Pehle saal loss dikh raha hai — bank isse explain karne ko kahega.');
+    if (d.scheme === 'CMYUVA' && bankLoan > CMYUVA_LOAN_CAP) warnings.push('CM YUVA me pehle charan ka loan max ₹5 lakh hai; bank loan isse zyada aa raha hai.');
+    if (d.scheme === 'MUDRA' && bankLoan > 2000000) warnings.push('MUDRA loan ki seema ₹20 lakh hai; bank loan isse zyada aa raha hai.');
+
+    return {
+      errors: [], warnings: warnings, d: d, N: N, simple: true,
+      assets: assets, assetLabels: ASSET_LABELS, depRates: DEP_RATES, depreciable: depreciable,
+      machineryCost: machineryCost, fixedAssets: fixedAssets, contingency: contingency, preopTotal: preopTotal,
+      fixedCapital: fixedCapital, wcRequirement: wcRequirement, totalCost: totalCost,
+      own: own, ownFixed: ownFixed, ownWC: ownWC, ownPct: totalCost ? Math.round(own / totalCost * 10000) / 100 : 0,
+      fixedLoans: fixedLoans, termLoan: termLoan, wcLoan: wcLoan, bankLoan: bankLoan, subsidy: subsidy,
+      loan: loan, years: years, avgDscr: avgDscr, minDscr: minDscr, ratios: ratios, viability: viability,
+      mudraCategory: mudraCategory(bankLoan), specialCategory: isSpecialCategory(d)
+    };
+  }
+
+  var api = { INTEREST_RATE: INTEREST_RATE, compute: compute, schemeDefaults: schemeDefaults, incomeTax: incomeTax, loanSchedule: loanSchedule, simpleLoanSchedule: simpleLoanSchedule };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.DPRCalc = api;
 })(this);

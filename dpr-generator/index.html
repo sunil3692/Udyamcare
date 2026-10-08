@@ -21,6 +21,7 @@
   <div class="toolbar">
     <button type="button" id="btn-sample-mfg" class="ghost">Sample: Atta Chakki (Manufacturing)</button>
     <button type="button" id="btn-sample-svc" class="ghost">Sample: Beauty Parlour (Service)</button>
+    <button type="button" id="btn-sample-simple" class="ghost">Sample: Borewell (Simple bank format)</button>
     <button type="button" id="btn-save" class="ghost">Save data (.json)</button>
     <label class="ghost file-btn">Load data<input type="file" id="file-load" accept=".json,application/json"></label>
     <button type="button" id="btn-reset" class="ghost danger">Clear form</button>
@@ -28,6 +29,19 @@
   <p class="hint">Sirf <b>*</b> wale fields zaroori hain. Baaki fields me sensible default bhare hue hain — zarurat ho to badal dein. Sab amount <b>₹ (Rupees)</b> me bharein.</p>
 
   <form id="dpr-form" autocomplete="off">
+
+  <div class="format-box">
+    <label>Report format
+      <select name="reportFormat">
+        <option value="detailed">Detailed (capacity, products, staff, operating cycle)</option>
+        <option value="simple">Simple bank format (monthly sales, % kharcha, 14 sections)</option>
+      </select>
+    </label>
+    <label>Business type (write-up template)
+      <select name="bizType"><option value="">— Apna likhenge / general —</option></select>
+    </label>
+    <button type="button" id="btn-fill-text" class="ghost">Template ka text section H me daalein (edit ke liye)</button>
+  </div>
 
   <details open>
     <summary>A. Promoter / Applicant details</summary>
@@ -111,8 +125,8 @@
       <label>Branch<input name="bankBranch"></label>
       <label>Own contribution (%)<input name="ownPct" type="number" step="0.1" min="0" max="100"><small>Scheme select karne par auto-fill</small></label>
       <label>Subsidy / margin money (%)<input name="subsidyPct" type="number" step="0.1" min="0" max="100"><small>PMEGP / CM YUVA: auto as per category &amp; area</small></label>
-      <label>Term loan interest (% p.a.)<input name="tlRate" type="number" step="0.05" value="10.5"></label>
-      <label>Working capital (CC) interest (% p.a.)<input name="wcRate" type="number" step="0.05" value="11"></label>
+      <label>Term loan interest (% p.a.)<input name="tlRate" type="number" value="10" readonly><small>Hamesha 10% fix</small></label>
+      <label>Working capital (CC) interest (% p.a.)<input name="wcRate" type="number" value="10" readonly><small>Hamesha 10% fix</small></label>
       <label>Repayment period (years)<input name="tenureYears" type="number" min="1" max="15" value="7"></label>
       <label>Moratorium (months)<input name="moratorium" type="number" min="0" max="36" value="6"></label>
     </div>
@@ -121,7 +135,7 @@
     <div class="grid">
       <label>Term loan amount (₹)<input name="termLoanAmt" type="number" min="0"></label>
       <label>Working capital loan amount (₹)<input name="wcLoanAmt" type="number" min="0"></label>
-      <label>Working capital requirement (₹)<input name="wcOverride" type="number" min="0"><small>Khali chhodenge to stock/debtor days se nikalega</small></label>
+      <label>Working capital requirement (₹)<input name="wcOverride" type="number" min="0"><small>Detailed: khali chhodenge to stock/debtor days se nikalega. Simple format: stock / WC amount yahan bharein.</small></label>
     </div>
   </details>
 
@@ -145,7 +159,24 @@
     <button type="button" class="add-row" data-table="tbl-machinery">+ Add machine</button>
   </details>
 
-  <details open>
+  <details open data-only="simple">
+    <summary>E. Sales &amp; kharche (Simple bank format)</summary>
+    <div class="grid">
+      <label>Year 1 sales per month (₹) *<input name="sMonthlySales" type="number" min="0"></label>
+      <label>Sales growth (% per year)<input name="sSalesGrowth" type="number" step="0.5" value="15"></label>
+      <label>Variable cost (% of sales)<input name="sVarPct" type="number" step="0.5" value="45"><small>Raw material, diesel, labour jaise kharche jo sales ke saath badhte hain</small></label>
+      <label>Variable cost ka naam<input name="varLabel" placeholder="e.g. Diesel, Casing Pipes, Bit Wear &amp; Site Labour"></label>
+      <label>Fixed kharche Year 1 (₹ per year)<input name="sFixedExp" type="number" min="0"><small>Salary, rent, bijli, admin</small></label>
+      <label>Fixed kharche growth (% per year)<input name="sFixedGrowth" type="number" step="0.5" value="8"></label>
+      <label>Fixed kharche ka naam<input name="fixedLabel" placeholder="e.g. Helper Wages, Vehicle Running &amp; Admin."></label>
+      <label>Working capital ka naam<input name="wcLabel" placeholder="e.g. Casing Pipe Inventory (PVC/GI)"></label>
+      <label>Drawings (% of net profit)<input name="sDrawPct" type="number" step="1" min="0" max="100" value="50"><small>0 rakhenge to section G ki fixed drawings lagegi</small></label>
+      <label>Sundry creditors (₹)<input name="sCreditors" type="number" min="0" value="0"></label>
+    </div>
+    <p class="hint">Projection repayment period jitne saal ka banega. Interest har saal ke opening balance par, principal barabar kishton me.</p>
+  </details>
+
+  <details open data-only="detailed">
     <summary>E. Products / Services &amp; sales</summary>
     <table class="rows" id="tbl-products">
       <thead><tr><th>Product / service</th><th>Unit</th><th>Full capacity per year (units)</th><th>Selling price per unit (₹)</th><th>Raw material cost per unit (₹)</th><th></th></tr></thead>
@@ -162,6 +193,7 @@
 
   <details open>
     <summary>F. Manpower</summary>
+    <p class="hint" data-only="simple">Simple format me salary "Fixed kharche" me hi shamil maani jaati hai; yahan sirf staff ka naam / sankhya report ke liye bharein.</p>
     <table class="rows" id="tbl-staff">
       <thead><tr><th>Designation</th><th>No.</th><th>Salary per month (₹ each)</th><th></th></tr></thead>
       <tbody></tbody>
@@ -172,7 +204,7 @@
     </div>
   </details>
 
-  <details>
+  <details data-only="detailed">
     <summary>G. Operating expenses &amp; working capital (optional — defaults diye hue hain)</summary>
     <div class="grid">
       <label>Rent per month (₹)<input name="rent" type="number" min="0" value="0"></label>
@@ -190,9 +222,12 @@
   </details>
 
   <details>
-    <summary>H. Extra write-up (optional — khali chhodenge to auto text banega)</summary>
+    <summary>H. Business write-up (optional — khali chhodenge to business type template / auto text lagega)</summary>
     <div class="grid one">
-      <label>Market potential / demand<textarea name="marketText" rows="3"></textarea></label>
+      <label>Introduction (har paragraph ke beech ek khali line)<textarea name="introText" rows="6"></textarea></label>
+      <label>Market potential points (har line ek point, "Heading: text")<textarea name="marketPoints" rows="6"></textarea></label>
+      <label>Raw material / inputs description<textarea name="inputsText" rows="4"></textarea></label>
+      <label>Market potential – opening paragraph<textarea name="marketText" rows="3"></textarea></label>
       <label>Manufacturing / service process<textarea name="processText" rows="3"></textarea></label>
       <label>Marketing strategy<textarea name="marketingText" rows="3"></textarea></label>
     </div>
@@ -226,6 +261,7 @@
 </template>
 
 <script src="calc.js"></script>
+<script src="templates.js"></script>
 <script src="report.js"></script>
 <script src="app.js"></script>
 </body>

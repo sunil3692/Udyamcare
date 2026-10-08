@@ -53,7 +53,41 @@
       (data[k] && data[k].length ? data[k] : [null]).forEach(function (r) { addRow(ROW_TABLES[k], r); });
     });
     if (data.ownPct === undefined || data.ownPct === '') applySchemeDefaults();
+    form.elements.tlRate.value = form.elements.wcRate.value = DPRCalc.INTEREST_RATE; // fixed, old saved files may carry other rates
+    applyFormat();
   }
+
+  // ---------- report format & business type ----------
+  var bizSel = form.elements.bizType;
+  DPRTemplates.list.forEach(function (t) {
+    var o = document.createElement('option'); o.value = t.key; o.textContent = t.label; bizSel.appendChild(o);
+  });
+  function applyFormat() {
+    var simple = form.elements.reportFormat.value === 'simple';
+    document.querySelectorAll('[data-only]').forEach(function (el) {
+      el.classList.toggle('off', el.dataset.only !== (simple ? 'simple' : 'detailed'));
+    });
+  }
+  form.elements.reportFormat.addEventListener('change', applyFormat);
+  bizSel.addEventListener('change', function () {
+    var t = DPRTemplates.get(bizSel.value);
+    if (!t) return;
+    if (!form.elements.productLine.value) form.elements.productLine.value = t.productLine;
+    form.elements.activity.value = t.activity;
+    ['varLabel', 'fixedLabel', 'wcLabel'].forEach(function (k) {
+      if (!form.elements[k].value) form.elements[k].value = t[k];
+    });
+    persist();
+  });
+  document.getElementById('btn-fill-text').addEventListener('click', function () {
+    var txt = DPRTemplates.plainText(bizSel.value, readForm());
+    if (!txt) { alert('Pehle Business type chunein.'); return; }
+    var filled = ['introText', 'marketPoints', 'inputsText'].some(function (k) { return form.elements[k].value; });
+    if (filled && !confirm('Section H ka likha hua text badal jayega. Aage badhein?')) return;
+    Object.keys(txt).forEach(function (k) { form.elements[k].value = txt[k]; });
+    form.querySelector('textarea[name="introText"]').closest('details').open = true;
+    persist();
+  });
 
   // ---------- scheme defaults (own % and subsidy %) ----------
   function applySchemeDefaults() {
@@ -87,7 +121,7 @@
       unitName: 'Shree Ram Flour Mill', constitution: 'Proprietorship', activity: 'Manufacturing',
       productLine: 'Wheat flour (atta), besan and spices grinding', unitAddress: 'Main Road, Village Rampur',
       district: 'Jhansi', state: 'Uttar Pradesh', area: 'Rural', premises: 'Rented', premisesArea: '800',
-      scheme: 'PMEGP', bankName: 'State Bank of India', bankBranch: 'Rampur', tlRate: '10.5', wcRate: '11',
+      scheme: 'PMEGP', bankName: 'State Bank of India', bankBranch: 'Rampur',
       tenureYears: '7', moratorium: '6', land: '0', building: '250000', furniture: '25000', electrical: '60000',
       computers: '0', vehicle: '0', preop: '20000', contingencyPct: '2',
       utilisation: '60,65,70,75,80', priceEsc: '3', costEsc: '4', years: '5', salaryInc: '5',
@@ -116,7 +150,7 @@
       unitName: 'Glow Beauty Parlour & Spa', constitution: 'Proprietorship', activity: 'Service',
       productLine: 'Beauty parlour, bridal makeup and spa services', unitAddress: 'Shop No. 12, Station Road',
       district: 'Sitapur', state: 'Uttar Pradesh', area: 'Urban', premises: 'Rented', premisesArea: '450',
-      scheme: 'MUDRA', bankName: 'Punjab National Bank', bankBranch: 'Station Road', tlRate: '10', wcRate: '11',
+      scheme: 'MUDRA', bankName: 'Punjab National Bank', bankBranch: 'Station Road',
       tenureYears: '5', moratorium: '3', land: '0', building: '120000', furniture: '90000', electrical: '40000',
       computers: '30000', vehicle: '0', preop: '15000', contingencyPct: '2',
       utilisation: '55,60,65,70,75', priceEsc: '5', costEsc: '5', years: '5', salaryInc: '6',
@@ -135,15 +169,38 @@
         { name: 'Spa & body care', unit: 'Sessions', capacity: '500', price: '700', rmCost: '150' }
       ],
       staff: [{ role: 'Beautician', count: '2', salary: '11000' }, { role: 'Helper / receptionist', count: '1', salary: '8000' }]
+    },
+    simple: {
+      reportFormat: 'simple', bizType: 'borewell',
+      applicantName: 'Rajababu', fatherName: 'Virendra Singh', gender: 'Male', category: 'General',
+      experience: 'Practical exposure to borewell drilling in the local belt', resAddress: 'Rajmau, Kasganj, Uttar Pradesh',
+      unitName: 'Raja Borewell Drilling Works', constitution: 'Proprietorship', activity: 'Service',
+      productLine: 'Borewell drilling & casing-pipe installation service', unitAddress: 'Rajmau',
+      district: 'Kasganj', state: 'Uttar Pradesh', area: 'Rural', premises: 'Owned',
+      scheme: 'OTHER', ownPct: '15', subsidyPct: '0', tenureYears: '4', moratorium: '0',
+      wcOverride: '200000', land: '0', building: '0', furniture: '25000', electrical: '0', computers: '0', vehicle: '0',
+      preop: '0', contingencyPct: '0',
+      sMonthlySales: '42000', sSalesGrowth: '15', sVarPct: '45', sFixedExp: '138000', sFixedGrowth: '8',
+      sDrawPct: '50', sCreditors: '15000',
+      varLabel: 'Diesel, Casing Pipes, Bit Wear & Site Labour', fixedLabel: 'Helper Wages, Vehicle Running & Admin.',
+      wcLabel: 'Casing Pipe Inventory (PVC/GI)',
+      machinery: [
+        { name: 'Compressor-based Drilling Attachment', qty: '1', rate: '150000' },
+        { name: 'Diesel Generator', qty: '1', rate: '50000' },
+        { name: 'Drilling Rods, Bits & Tools', qty: '1', rate: '60000' },
+        { name: 'Water-Testing & Pump-Installation Equipment', qty: '1', rate: '15000' }
+      ],
+      staff: [{ role: 'local drilling helpers (per-job basis)', count: '2', salary: '0' }]
     }
   };
   function loadSample(key) {
     writeForm(SAMPLES[key]);
-    applySchemeDefaults();
+    if (!SAMPLES[key].ownPct) applySchemeDefaults();
     persist();
   }
   document.getElementById('btn-sample-mfg').addEventListener('click', function () { loadSample('mfg'); });
   document.getElementById('btn-sample-svc').addEventListener('click', function () { loadSample('svc'); });
+  document.getElementById('btn-sample-simple').addEventListener('click', function () { loadSample('simple'); });
 
   document.getElementById('btn-reset').addEventListener('click', function () {
     if (!confirm('Saara data clear kar dein?')) return;
