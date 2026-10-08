@@ -1,12 +1,8 @@
 name: UdyamCare Auto Poster
 
 on:
-  schedule:
-    - cron: "30 2 * * *"    # 8:00 AM IST - Registration
-    - cron: "30 6 * * *"    # 12:00 PM IST - Loan & Finance
-    - cron: "30 10 * * *"   # 4:00 PM IST - Business Idea
-    - cron: "30 14 * * *"   # 8:00 PM IST - Business Tips
-
+  # Schedule disabled: replaced by social-reels-images.yml (reels + image posts).
+  # Re-add the cron entries here to re-enable the old Floot text poster.
   workflow_dispatch:
     inputs:
       slot:
