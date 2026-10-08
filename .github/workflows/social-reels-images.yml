@@ -1,0 +1,101 @@
+name: UdyamCare Reels + Image Poster
+
+# Din me 4 slot: har slot par 1 Reel + 1 Image post (kul 4 reels + 4 images).
+# Purane "UdyamCare Auto Poster" se takrao na ho isliye 30 min baad chalta hai.
+on:
+  schedule:
+    - cron: "0 3 * * *"     # 8:30 AM IST - Registration
+    - cron: "0 7 * * *"     # 12:30 PM IST - Loan & Finance
+    - cron: "0 11 * * *"    # 4:30 PM IST - Business Idea
+    - cron: "0 15 * * *"    # 8:30 PM IST - Business Tips
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: "Category"
+        required: true
+        type: choice
+        options: [registration, loan, idea, tips]
+      kind:
+        description: "Kya post karein"
+        required: true
+        default: both
+        type: choice
+        options: [both, reel, image]
+      dry_run:
+        description: "Dry run (Facebook par post nahi hoga)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: social-poster
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine slot
+        id: slot
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "slot=${{ inputs.slot }}" >> "$GITHUB_OUTPUT"
+          else
+            case "$(date -u +%H)" in
+              03|04) echo "slot=registration" >> "$GITHUB_OUTPUT" ;;
+              07|08) echo "slot=loan" >> "$GITHUB_OUTPUT" ;;
+              11|12) echo "slot=idea" >> "$GITHUB_OUTPUT" ;;
+              15|16) echo "slot=tips" >> "$GITHUB_OUTPUT" ;;
+              *) echo "slot=" >> "$GITHUB_OUTPUT" ;;
+            esac
+          fi
+
+      - name: Install system packages
+        if: steps.slot.outputs.slot != ''
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-noto-core libraqm0 fontconfig
+
+      - uses: actions/setup-python@v5
+        if: steps.slot.outputs.slot != ''
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: autoposter/requirements.txt
+
+      - name: Install Python deps
+        if: steps.slot.outputs.slot != ''
+        run: pip install -r autoposter/requirements.txt
+
+      - name: Generate and post
+        if: steps.slot.outputs.slot != ''
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+        run: |
+          ARGS="--slot ${{ steps.slot.outputs.slot }} --kind ${{ inputs.kind || 'both' }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          python autoposter/post.py $ARGS
+
+      - name: Upload generated media
+        if: always() && steps.slot.outputs.slot != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-media
+          path: |
+            autoposter/out/post.png
+            autoposter/out/reel.mp4
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Save topic history
+        if: steps.slot.outputs.slot != ''
+        run: |
+          git config user.name "udyamcare-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add autoposter/history.json 2>/dev/null || true
+          git diff --cached --quiet || (git commit -m "autoposter: update topic history" && git pull --rebase && git push)
