@@ -315,13 +315,36 @@ def fb_post_reel(path, caption):
     return fin.json()
 
 
+def check_fb():
+    """Print what FB_PAGE_TOKEN and FB_PAGE_ID actually are (never prints the token)."""
+    page_id, token = os.environ["FB_PAGE_ID"], os.environ["FB_PAGE_TOKEN"]
+    log(f"FB_PAGE_ID looks numeric: {page_id.strip().isdigit()}; has whitespace/quotes: {page_id != page_id.strip().strip(chr(34)).strip(chr(39))}")
+    log(f"FB_PAGE_TOKEN length: {len(token)}; has whitespace/quotes: {token != token.strip().strip(chr(34)).strip(chr(39))}")
+    me = requests.get(f"{GRAPH}/me", params={"fields": "id,name", "access_token": token}, timeout=30)
+    log(f"/me -> HTTP {me.status_code}: {me.text[:300]}")
+    try:
+        me_id = me.json().get("id")
+    except Exception:
+        me_id = None
+    log(f"Token belongs to the same ID as FB_PAGE_ID: {me_id == page_id.strip()}")
+    pg = requests.get(f"{GRAPH}/{page_id.strip()}", params={"fields": "id,name,category", "access_token": token}, timeout=30)
+    log(f"/FB_PAGE_ID -> HTTP {pg.status_code}: {pg.text[:300]}")
+    acc = requests.get(f"{GRAPH}/me/accounts", params={"fields": "id,name", "access_token": token}, timeout=30)
+    log(f"/me/accounts -> HTTP {acc.status_code}: {acc.text[:400]}")
+    perms = requests.get(f"{GRAPH}/me/permissions", params={"access_token": token}, timeout=30)
+    log(f"/me/permissions -> HTTP {perms.status_code}: {perms.text[:400]}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--slot", required=True, choices=["registration", "loan", "idea", "tips"])
     ap.add_argument("--kind", default="both", choices=["both", "reel", "image"])
     ap.add_argument("--source", default="auto", choices=["auto", "bank", "api"], help="auto: bank first, API once the bank is used up")
+    ap.add_argument("--check-fb", action="store_true", help="diagnose FB_PAGE_ID / FB_PAGE_TOKEN, post nothing")
     ap.add_argument("--dry-run", action="store_true", help="no API calls / no Facebook posting; uses sample content")
     a = ap.parse_args()
+    if a.check_fb:
+        return check_fb()
     OUT.mkdir(exist_ok=True)
     if not features.check("raqm"):
         log("WARNING: libraqm missing - Devanagari conjuncts may render incorrectly")

@@ -25,6 +25,10 @@ on:
         description: "Dry run (Facebook par post nahi hoga)"
         type: boolean
         default: true
+      check_fb:
+        description: "Sirf Facebook token/Page ID check karo (kuch post nahi hoga)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -70,8 +74,15 @@ jobs:
         if: steps.slot.outputs.slot != ''
         run: pip install -r autoposter/requirements.txt
 
+      - name: Check Facebook credentials
+        if: steps.slot.outputs.slot != '' && inputs.check_fb == true
+        env:
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+        run: python autoposter/post.py --slot ${{ steps.slot.outputs.slot }} --check-fb
+
       - name: Generate and post
-        if: steps.slot.outputs.slot != ''
+        if: steps.slot.outputs.slot != '' && inputs.check_fb != true
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
