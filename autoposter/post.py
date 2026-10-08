@@ -26,10 +26,10 @@ FONT_CANDIDATES = [
 ]
 SAMPLE = {
     "title": "PMEGP लोन कैसे पाएं?",
-    "slides": ["PMEGP से पाएं 25 लाख तक का लोन", "सामान्य वर्ग को 15–25% सब्सिडी", "विशेष वर्ग को 25–35% सब्सिडी", "KVIC पोर्टल पर ऑनलाइन आवेदन करें", "DPR बनवाएं – UdyamCare के साथ"],
-    "voiceover": "क्या आप अपना बिज़नेस शुरू करना चाहते हैं? पी एम ई जी पी योजना में पच्चीस लाख तक का लोन मिलता है। सामान्य वर्ग को पंद्रह से पच्चीस प्रतिशत सब्सिडी मिलती है। आवेदन के लिए के वी आई सी पोर्टल पर जाएं और प्रोजेक्ट रिपोर्ट तैयार रखें। अधिक जानकारी के लिए यूद्यमकेयर से जुड़ें।",
-    "caption": "PMEGP लोन से अपना बिज़नेस शुरू करें! 💼\nDPR और पूरी जानकारी के लिए UdyamCare से जुड़ें।",
-    "hashtags": ["#PMEGP", "#MSME", "#Udyam", "#BusinessLoan", "#UdyamCare"],
+    "slides": ["PMEGP में सब्सिडी के साथ बिज़नेस लोन मिलता है", "सब्सिडी की दर वर्ग और क्षेत्र पर निर्भर करती है", "KVIC पोर्टल पर ऑनलाइन आवेदन करें", "आवेदन के साथ प्रोजेक्ट रिपोर्ट (DPR) लगती है"],
+    "voiceover": "क्या आप अपना बिज़नेस शुरू करना चाहते हैं? पी एम ई जी पी योजना में सब्सिडी के साथ लोन मिलता है। आवेदन के लिए के वी आई सी पोर्टल पर जाएं और प्रोजेक्ट रिपोर्ट तैयार रखें।",
+    "caption": "PMEGP लोन से अपना बिज़नेस शुरू करें! 💼",
+    "tags": ["#PMEGP"],
 }
 
 
@@ -42,6 +42,29 @@ def load_history():
         return json.loads(HISTORY.read_text())
     except Exception:
         return []
+
+
+def load_bank(slot):
+    try:
+        return json.loads((ROOT / "content_bank" / f"{slot}.json").read_text())
+    except Exception:
+        return []
+
+
+def pick_from_bank(slot, history):
+    """Next unused bank item for this slot; once all are used, restart from the least recently used."""
+    bank = load_bank(slot)
+    if not bank:
+        return None, False
+    used_order = [h["title"] for h in history if h.get("slot") == slot]
+    for item in bank:
+        if item["title"] not in used_order:
+            return item, False
+    for t in used_order:  # oldest use first
+        for item in bank:
+            if item["title"] == t:
+                return item, True
+    return bank[0], True
 
 
 def pick_topic(slot, history):
@@ -73,71 +96,135 @@ Sirf JSON do:
     return data
 
 
-def _fc_font():
+_FONT_CACHE = {}
+
+
+def _find_font(pattern, fallbacks):
+    key = pattern
+    if key not in _FONT_CACHE:
+        found = None
+        try:
+            r = subprocess.run(["fc-match", "-f", "%{file}", pattern], capture_output=True, text=True)
+            if r.stdout.strip() and Path(r.stdout.strip()).exists():
+                found = r.stdout.strip()
+        except Exception:
+            pass
+        _FONT_CACHE[key] = found or next((p for p in fallbacks if Path(p).exists()), None)
+    return _FONT_CACHE[key]
+
+
+def get_font(size, latin=False):
+    if latin:
+        path = _find_font("Noto Sans:bold", ["/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"])
+    else:
+        path = _find_font("Noto Sans Devanagari:bold", FONT_CANDIDATES)
+    engine = ImageFont.Layout.RAQM if features.check("raqm") else ImageFont.Layout.BASIC
     try:
-        r = subprocess.run(["fc-match", "-f", "%{file}", "Noto Sans Devanagari:bold"], capture_output=True, text=True)
-        return [r.stdout.strip()] if r.stdout.strip() else []
+        return ImageFont.truetype(path, size, layout_engine=engine) if path else ImageFont.load_default()
     except Exception:
-        return []
+        return ImageFont.load_default()
 
 
-def get_font(size):
-    for p in _fc_font() + FONT_CANDIDATES:
-        if Path(p).exists():
-            try:
-                return ImageFont.truetype(p, size, layout_engine=ImageFont.Layout.RAQM if features.check("raqm") else ImageFont.Layout.BASIC)
-            except Exception:
-                continue
-    return ImageFont.load_default()
+def runs(text):
+    """Split into (segment, is_latin) runs: Latin letters use a Latin font, everything else the Devanagari font
+    (the Devanagari font has no Latin glyphs)."""
+    out = []
+    for ch in text:
+        latin = ch.isascii() and ch.isalpha()
+        if out and (out[-1][1] == latin or ch == " "):
+            out[-1] = (out[-1][0] + ch, out[-1][1])
+        else:
+            out.append((ch, latin))
+    return out
 
 
-def wrap(draw, text, font, max_w):
-    words, lines, cur = text.split(), [], ""
-    for w in words:
+def text_w(d, text, size):
+    return sum(d.textlength(seg, font=get_font(size, lat)) for seg, lat in runs(text))
+
+
+def draw_text(d, xy, text, size, fill):
+    x, y = xy
+    for seg, lat in runs(text):
+        f = get_font(size, lat)
+        d.text((x, y), seg, font=f, fill=fill)
+        x += d.textlength(seg, font=f)
+
+
+def wrap(d, text, size, max_w):
+    lines, cur = [], ""
+    for w in text.split():
         t = (cur + " " + w).strip()
-        if draw.textlength(t, font=font) <= max_w:
+        if text_w(d, t, size) <= max_w:
             cur = t
         else:
-            lines.append(cur)
+            if cur:
+                lines.append(cur)
             cur = w
     return lines + [cur] if cur else lines
 
 
-def make_card(text, idx, total, palette, path, title=None, size=(W, H)):
+def gradient(size, palette):
     w, h = size
     top, bot = palette
-    img = Image.new("RGB", size)
-    px = img.load()
-    for y in range(h):
-        t = y / h
-        c = tuple(int(top[i] * (1 - t) + bot[i] * t) for i in range(3))
-        for x in range(w):
-            px[x, y] = c
+    mask = Image.linear_gradient("L").resize((w, h))
+    return Image.composite(Image.new("RGB", size, bot), Image.new("RGB", size, top), mask)
+
+
+def fit_lines(d, text, start, minimum, max_w, max_h, spacing=1.45):
+    size = start
+    while True:
+        lines = wrap(d, text, size, max_w)
+        if len(lines) * size * spacing <= max_h or size <= minimum:
+            return size, lines
+        size -= 4
+
+
+def make_card(text, idx, total, palette, path, title=None):
+    img = gradient((W, H), palette)
     d = ImageDraw.Draw(img)
-    d.text((60, 70 * h // H), "UdyamCare", font=get_font(56 * w // W), fill=(255, 255, 255, 230))
-    if title and idx == 0:
-        f = get_font(92 * w // W)
-        lines = wrap(d, title, f, w - 160)
-        text_block = lines
-    else:
-        f = get_font(84 * w // W)
-        text_block = wrap(d, text, f, w - 160)
-    line_h = int(f.size * 1.5)
-    y = (h - line_h * len(text_block)) // 2
-    for ln in text_block:
-        tw = d.textlength(ln, font=f)
-        d.text(((w - tw) / 2, y), ln, font=f, fill="white")
-        y += line_h
+    draw_text(d, (60, 70), "UdyamCare", 56, (255, 255, 255))
+    start = 104 if (title and idx == 0) else 88
+    size, lines = fit_lines(d, text, start, 52, W - 160, 1100)
+    lh = int(size * 1.45)
+    y = (H - lh * len(lines)) // 2
+    for ln in lines:
+        draw_text(d, ((W - text_w(d, ln, size)) / 2, y), ln, size, "white")
+        y += lh
     if total > 1:
-        d.text((60, h - 110 * h // H), f"{idx + 1}/{total}", font=get_font(44 * w // W), fill=(255, 255, 255))
+        draw_text(d, (60, H - 120), f"{idx + 1}/{total}", 44, (255, 255, 255))
     img.save(path)
     return path
 
 
 def make_image_post(content, palette):
+    S = 1080
     path = OUT / "post.png"
-    body = "\n".join(content["slides"][:4])
-    make_card(content["title"] + "\n" + "\n".join("• " + s for s in content["slides"][:4]), 0, 1, palette, path, size=(1080, 1080))
+    img = gradient((S, S), palette)
+    d = ImageDraw.Draw(img)
+    draw_text(d, (60, 50), "UdyamCare", 48, (255, 255, 255))
+    tsize, tlines = fit_lines(d, content["title"], 84, 56, S - 120, 300)
+    y = 140
+    for ln in tlines:
+        draw_text(d, (60, y), ln, tsize, "white")
+        y += int(tsize * 1.4)
+    d.rectangle([60, y + 10, 260, y + 16], fill=(255, 255, 255))
+    y += 50
+    bullets = content["slides"][:4]
+    avail = S - y - 60
+    size = 56
+    while size > 36:
+        blocks = [wrap(d, b, size, S - 190) for b in bullets]
+        if sum(len(b) for b in blocks) * size * 1.4 + len(bullets) * 22 <= avail:
+            break
+        size -= 4
+    blocks = [wrap(d, b, size, S - 190) for b in bullets]
+    for lines in blocks:
+        d.ellipse([60, y + size * 0.45, 60 + 20, y + size * 0.45 + 20], fill=(255, 255, 255))
+        for ln in lines:
+            draw_text(d, (110, y), ln, size, "white")
+            y += int(size * 1.4)
+        y += 22
+    img.save(path)
     return path
 
 
@@ -159,7 +246,7 @@ def make_reel(content, palette, dry_run):
     else:
         asyncio.run(_tts(content["voiceover"], audio))
     dur = min(audio_duration(audio), 88)
-    slides = [content["title"]] + content["slides"]
+    slides = [content["title"]] + content["slides"] + ([CTA_SLIDE] if content.get("_slot") else [])
     per = dur / len(slides)
     lst = OUT / "slides.txt"
     lines = []
@@ -174,8 +261,27 @@ def make_reel(content, palette, dry_run):
     return video
 
 
+COMMON_TAGS = ["#UdyamCare", "#MSME", "#BusinessIndia"]
+DISCLAIMER = "ℹ️ योजनाओं के नियम बदलते रहते हैं, आवेदन से पहले आधिकारिक पोर्टल/बैंक से जानकारी ज़रूर जाँचें।"
+CTA_SLIDE = "प्रोजेक्ट रिपोर्ट (DPR) और पूरी मदद के लिए UdyamCare से जुड़ें"
+CTA_VOICE = " प्रोजेक्ट रिपोर्ट और पूरी जानकारी के लिए, उद्यम केयर से जुड़ें।"
+
+
+def finalize_bank_item(item, slot):
+    c = dict(item)
+    c["slides"] = list(item["slides"])
+    if not c.get("_cta_done"):
+        c["voiceover"] = item["voiceover"].rstrip() + CTA_VOICE
+    c["hashtags"] = list(dict.fromkeys(item.get("tags", []) + COMMON_TAGS))
+    c["_slot"] = slot
+    return c
+
+
 def caption_text(c):
-    return c["caption"].strip() + "\n\n" + " ".join(c["hashtags"])
+    body = c["caption"].strip()
+    if c.get("_slot") in ("loan", "registration"):
+        body += "\n\n" + DISCLAIMER
+    return body + "\n\n" + " ".join(c["hashtags"])
 
 
 def fb_post_image(path, caption):
@@ -201,14 +307,34 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--slot", required=True, choices=["registration", "loan", "idea", "tips"])
     ap.add_argument("--kind", default="both", choices=["both", "reel", "image"])
+    ap.add_argument("--source", default="auto", choices=["auto", "bank", "api"], help="auto: bank first, API once the bank is used up")
     ap.add_argument("--dry-run", action="store_true", help="no API calls / no Facebook posting; uses sample content")
     a = ap.parse_args()
     OUT.mkdir(exist_ok=True)
     if not features.check("raqm"):
         log("WARNING: libraqm missing - Devanagari conjuncts may render incorrectly")
     history = load_history()
-    topic = pick_topic(a.slot, history)
-    content = SAMPLE if a.dry_run else generate_content(a.slot, topic, [h["title"] for h in history[-30:]])
+    topic = None
+    cycled = False
+    item, cycled = pick_from_bank(a.slot, history) if a.source in ("auto", "bank") else (None, False)
+    if item and not (cycled and a.source == "auto" and os.environ.get("ANTHROPIC_API_KEY") and not a.dry_run):
+        content = finalize_bank_item(item, a.slot)
+        topic = item.get("topic", item["title"])
+        log(f"Source: content bank{' (cycled, all used once)' if cycled else ''}")
+    elif a.dry_run:
+        content = SAMPLE
+        topic = "sample"
+    else:
+        topic = pick_topic(a.slot, history)
+        try:
+            content = generate_content(a.slot, topic, [h["title"] for h in history[-30:]])
+            log("Source: Claude API")
+        except Exception as e:
+            if not item:
+                raise
+            log(f"Claude API failed ({type(e).__name__}); falling back to content bank")
+            content = finalize_bank_item(item, a.slot)
+            topic = item.get("topic", item["title"])
     palette = random.choice(PALETTES)
     cap = caption_text(content)
     log(f"Topic: {topic}\nTitle: {content['title']}")
@@ -222,7 +348,7 @@ def main():
     log(json.dumps(results, ensure_ascii=False))
     if not a.dry_run:
         history.append({"slot": a.slot, "topic": topic, "title": content["title"]})
-        HISTORY.write_text(json.dumps(history[-200:], ensure_ascii=False, indent=1))
+        HISTORY.write_text(json.dumps(history[-600:], ensure_ascii=False, indent=1))
 
 
 if __name__ == "__main__":
