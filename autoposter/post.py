@@ -284,22 +284,34 @@ def caption_text(c):
     return body + "\n\n" + " ".join(c["hashtags"])
 
 
+def fb_ok(r, what):
+    """raise_for_status, but include Facebook's error message (never contains our token)."""
+    if r.ok:
+        return r
+    try:
+        err = r.json().get("error", {})
+        detail = f"code={err.get('code')} subcode={err.get('error_subcode')} type={err.get('type')} message={err.get('message')}"
+    except Exception:
+        detail = r.text[:500]
+    raise RuntimeError(f"Facebook {what} failed (HTTP {r.status_code}): {detail}")
+
+
 def fb_post_image(path, caption):
     r = requests.post(f"{GRAPH}/{os.environ['FB_PAGE_ID']}/photos", data={"caption": caption, "access_token": os.environ["FB_PAGE_TOKEN"]}, files={"source": open(path, "rb")}, timeout=120)
-    r.raise_for_status()
+    fb_ok(r, "photo upload")
     return r.json()
 
 
 def fb_post_reel(path, caption):
     page, token = os.environ["FB_PAGE_ID"], os.environ["FB_PAGE_TOKEN"]
     r = requests.post(f"{GRAPH}/{page}/video_reels", data={"upload_phase": "start", "access_token": token}, timeout=60)
-    r.raise_for_status()
+    fb_ok(r, "reel start")
     start = r.json()
     data = Path(path).read_bytes()
     up = requests.post(start["upload_url"], headers={"Authorization": f"OAuth {token}", "offset": "0", "file_size": str(len(data))}, data=data, timeout=300)
-    up.raise_for_status()
+    fb_ok(up, "reel upload")
     fin = requests.post(f"{GRAPH}/{page}/video_reels", data={"upload_phase": "finish", "video_id": start["video_id"], "video_state": "PUBLISHED", "description": caption, "access_token": token}, timeout=60)
-    fin.raise_for_status()
+    fb_ok(fin, "reel finish")
     return fin.json()
 
 
