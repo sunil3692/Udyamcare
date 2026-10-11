@@ -29,5 +29,7 @@
   "dependencies": {
     "motion": "^14.1.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "ui-ux-pro-max-cli": "^2.15.0"
+  }
 }
