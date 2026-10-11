@@ -649,6 +649,12 @@ function selectOption(questionId, value) {
   });
   document.querySelector(`[data-question="${questionId}"] [data-value="${value}"]`).classList.add('selected');
 
+  // Enable next button
+  const nextBtn = document.querySelector('.btn-next');
+  if (nextBtn) {
+    nextBtn.disabled = false;
+  }
+
   updateProgress();
 }
 
