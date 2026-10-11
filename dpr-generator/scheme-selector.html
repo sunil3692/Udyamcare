@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scheme Selector Game - UdyamCare</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --primary: #0B5CAD;
+    --primary-light: #1B7BBE;
+    --success: #2ECC71;
+    --warning: #E67E22;
+    --error: #E74C3C;
+    --bg: #F8F9FA;
+    --text: #2C3E50;
+    --text-light: #5D6D7B;
+    --border: #E0E6ED;
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1A1D26;
+      --text: #E8EAED;
+      --text-light: #A8ACB5;
+      --border: #3A3F4A;
+      --shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    }
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 20px;
+  }
+
+  .container {
+    max-width: 700px;
+    margin: 0 auto;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 40px;
+    animation: fadeIn 0.6s ease-in;
+  }
+
+  header h1 {
+    font-size: clamp(24px, 5vw, 42px);
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  header p {
+    color: var(--text-light);
+    font-size: 14px;
+  }
+
+  .progress-bar {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    margin: 30px 0;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 3px;
+    transition: width 0.4s ease;
+  }
+
+  .question-container {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow);
+    animation: slideUp 0.5s ease;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .question-container {
+      background: #252A33;
+    }
+  }
+
+  .question-number {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+
+  .question-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+
+  .options-grid {
+    display: grid;
+    gap: 12px;
+  }
+
+  .option-btn {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background: var(--bg);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 15px;
+    transition: all 0.3s ease;
+    text-align: left;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .option-btn {
+      background: #1A1D26;
+    }
+  }
+
+  .option-btn:hover {
+    border-color: var(--primary);
+    background: rgba(11, 92, 173, 0.05);
+  }
+
+  .option-btn.selected {
+    border-color: var(--primary);
+    background: rgba(11, 92, 173, 0.1);
+    font-weight: 500;
+  }
+
+  .option-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+  }
+
+  .option-label {
+    flex: 1;
+  }
+
+  .option-desc {
+    font-size: 12px;
+    color: var(--text-light);
+    margin-top: 4px;
+  }
+
+  .button-group {
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    margin-top: 28px;
+  }
+
+  button {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .btn-prev {
+    background: var(--border);
+    color: var(--text);
+  }
+
+  .btn-prev:hover:not(:disabled) {
+    background: var(--border);
+    opacity: 0.8;
+  }
+
+  .btn-next {
+    background: var(--primary);
+    color: white;
+    min-width: 120px;
+  }
+
+  .btn-next:hover {
+    background: var(--primary-light);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(11, 92, 173, 0.3);
+  }
+
+  .btn-next:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .results-container {
+    animation: fadeIn 0.6s ease;
+  }
+
+  .result-card {
+    background: white;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+    transition: all 0.3s ease;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .result-card {
+      background: #252A33;
+    }
+  }
+
+  .result-card:hover {
+    border-color: var(--primary);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(11, 92, 173, 0.15);
+  }
+
+  .result-card.top {
+    border-left: 5px solid var(--success);
+  }
+
+  .result-card.good {
+    border-left: 5px solid var(--primary);
+  }
+
+  .result-card.other {
+    border-left: 5px solid var(--text-light);
+  }
+
+  .result-scheme-name {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+
+  .result-match {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--success);
+    margin-bottom: 12px;
+  }
+
+  .result-description {
+    color: var(--text-light);
+    font-size: 14px;
+    margin-bottom: 12px;
+    line-height: 1.5;
+  }
+
+  .result-highlights {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  .highlight {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  .highlight:last-child {
+    margin-bottom: 0;
+  }
+
+  .highlight-icon {
+    color: var(--success);
+    font-weight: bold;
+    flex-shrink: 0;
+  }
+
+  .cta-buttons {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .btn-use-scheme {
+    flex: 1;
+    background: var(--primary);
+    color: white;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    text-align: center;
+    transition: all 0.3s ease;
+  }
+
+  .btn-use-scheme:hover {
+    background: var(--primary-light);
+    transform: translateY(-2px);
+  }
+
+  .summary {
+    background: rgba(11, 92, 173, 0.05);
+    border: 1px solid var(--primary);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 24px;
+    font-size: 14px;
+  }
+
+  .summary-title {
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: 8px;
+  }
+
+  .summary-item {
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .summary-item:last-child {
+    margin-bottom: 0;
+  }
+
+  .hidden {
+    display: none;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (max-width: 600px) {
+    .question-container {
+      padding: 24px;
+    }
+
+    .question-title {
+      font-size: 18px;
+    }
+
+    .button-group {
+      flex-direction: column;
+    }
+
+    .btn-prev, .btn-next {
+      width: 100%;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>🎮 Scheme Selector Game</h1>
+    <p>Apke project ke liye best scheme dhundhe</p>
+  </header>
+
+  <div class="progress-bar">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+
+  <div id="questionsPanel">
+    <!-- Questions will be inserted here -->
+  </div>
+
+  <div id="resultsPanel" class="hidden">
+    <div class="summary" id="resultsSummary"></div>
+    <div id="schemsContainer"></div>
+    <div style="text-align: center; margin-top: 32px;">
+      <button onclick="restart()" style="background: var(--primary); color: white; padding: 12px 32px; border-radius: 8px; font-weight: 500;">🔄 Fir se khelen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const QUESTIONS = [
+  {
+    id: 'activity',
+    title: 'Apka project kis type ka hai?',
+    options: [
+      { value: 'Manufacturing', label: 'Manufacturing (Goods bante ho)', icon: '🏭' },
+      { value: 'Service', label: 'Service (Sewa dete ho)', icon: '🛠️' },
+      { value: 'Trading', label: 'Trading (Goods bikate ho)', icon: '🏪' }
+    ]
+  },
+  {
+    id: 'projectCost',
+    title: 'Project cost kya hai?',
+    options: [
+      { value: 'upto_5l', label: 'Upto ₹5 Lakh', icon: '💰', range: [0, 500000] },
+      { value: '5l_25l', label: '₹5 - ₹25 Lakh', icon: '💵', range: [500000, 2500000] },
+      { value: '25l_above', label: '₹25 Lakh se zyada', icon: '💸', range: [2500000, Infinity] }
+    ]
+  },
+  {
+    id: 'location',
+    title: 'Project kaha lagana hai?',
+    options: [
+      { value: 'Rural', label: 'Rural (Gaon/Chhota town)', icon: '🌾' },
+      { value: 'Urban', label: 'Urban (Bada shahar)', icon: '🏙️' }
+    ]
+  },
+  {
+    id: 'age',
+    title: 'Teri umar kya hai?',
+    options: [
+      { value: 'below_21', label: '18-21 saal', icon: '👶' },
+      { value: '21_40', label: '21-40 saal', icon: '👨' },
+      { value: 'above_40', label: '40 saal se zyada', icon: '👴' }
+    ]
+  },
+  {
+    id: 'category',
+    title: 'Social category?',
+    options: [
+      { value: 'General', label: 'General', icon: '👤' },
+      { value: 'OBC', label: 'OBC (Other Backward Class)', icon: '👥' },
+      { value: 'SC', label: 'SC (Scheduled Caste)', icon: '👥' },
+      { value: 'ST', label: 'ST (Scheduled Tribe)', icon: '👥' }
+    ]
+  },
+  {
+    id: 'state',
+    title: 'Kaun se state me ho?',
+    options: [
+      { value: 'UP', label: 'Uttar Pradesh', icon: '📍' },
+      { value: 'other', label: 'Kisi aur state me', icon: '📍' }
+    ]
+  },
+  {
+    id: 'aspirational',
+    title: 'Aspirational district me hai?',
+    options: [
+      { value: 'yes', label: 'Haan, aspirational district me hai', icon: '⭐' },
+      { value: 'no', label: 'Nahi', icon: '⭐' }
+    ]
+  }
+];
+
+const SCHEMES = {
+  PMEGP: {
+    name: 'PMEGP (Pradhan Mantri Employment Generation Programme)',
+    description: 'Central government ka sabse bada scheme - manufacturing, service, trading sab types ke liye',
+    highlights: [
+      'Subsidy: 15% urban, 25% rural (special category ke liye 25% urban, 35% rural)',
+      'Loan: Bank se available',
+      'Upto ₹25 lakh tak project',
+      'EDP training zaroori'
+    ],
+    requirements: {
+      maxCost: 2500000,
+      minAge: 18,
+      maxAge: Infinity,
+      activities: ['Manufacturing', 'Service', 'Trading'],
+      locations: ['Rural', 'Urban']
+    }
+  },
+  MUDRA: {
+    name: 'MUDRA (Micro Units Development and Refinance Agency)',
+    description: 'Micro business ke liye tayyar - chhoti machinery, kacha mal lagaane ke liye',
+    highlights: [
+      'Loan upto ₹10 lakh',
+      'Koi subsidy nahi',
+      'Shaitan/Kisaan/Tarun loans available',
+      'Tayyari/Mudra Bank members'
+    ],
+    requirements: {
+      maxCost: 1000000,
+      minAge: 18,
+      maxAge: Infinity,
+      activities: ['Manufacturing', 'Service', 'Trading'],
+      locations: ['Rural', 'Urban']
+    }
+  },
+  CMYUVA: {
+    name: 'CM YUVA (Uttar Pradesh)',
+    description: 'UP mein naubhava yuvaao ke liye special scheme - ek toh interest subsidy, doosra margin money subsidy',
+    highlights: [
+      '21-40 saal ke liye',
+      'Margin money subsidy: 10% (max ₹50,000)',
+      'Interest subsidy: 100% for 4 years',
+      'SC/ST/OBC ko extra benefit',
+      'Aspirational districts ko aur benefit'
+    ],
+    requirements: {
+      maxCost: Infinity,
+      minAge: 21,
+      maxAge: 40,
+      activities: ['Manufacturing', 'Service'],
+      locations: ['Rural', 'Urban'],
+      states: ['UP'],
+      needsCategory: true
+    }
+  },
+  'Stand-Up India': {
+    name: 'Stand-Up India',
+    description: 'SC/ST/Women entrepreneurs ke liye special government scheme',
+    highlights: [
+      'Loan upto ₹10 lakh',
+      'SC/ST/Women ke liye special',
+      'Government guarantee',
+      'Collateral-free'
+    ],
+    requirements: {
+      maxCost: 1000000,
+      minAge: 18,
+      maxAge: Infinity,
+      activities: ['Manufacturing', 'Service', 'Trading'],
+      locations: ['Rural', 'Urban'],
+      needsSpecialCategory: true
+    }
+  },
+  CGTMSE: {
+    name: 'CGTMSE (Credit Guarantee Trust for Micro and Small Enterprises)',
+    description: 'Bank loan mein guarantee provide karta hai - guarantee se bank ko aur shukriya bhar rahe ho',
+    highlights: [
+      'Loan upto ₹2 crore',
+      'Credit guarantee (1 lakh upto)',
+      'Alag subsidy nahi',
+      'Aik-dam simple'
+    ],
+    requirements: {
+      maxCost: 20000000,
+      minAge: 18,
+      maxAge: Infinity,
+      activities: ['Manufacturing', 'Service', 'Trading'],
+      locations: ['Rural', 'Urban']
+    }
+  }
+};
+
+const answers = {};
+let currentQuestion = 0;
+
+function getRelevantSchemes() {
+  const result = [];
+
+  Object.entries(SCHEMES).forEach(([key, scheme]) => {
+    let match = true;
+    let score = 0;
+
+    // Check activity
+    if (!scheme.requirements.activities.includes(answers.activity)) {
+      match = false;
+    } else {
+      score += 20;
+    }
+
+    // Check location
+    if (!scheme.requirements.locations.includes(answers.location)) {
+      match = false;
+    } else {
+      score += 10;
+    }
+
+    // Check project cost
+    if (answers.projectCost) {
+      const costRange = {
+        'upto_5l': [0, 500000],
+        '5l_25l': [500000, 2500000],
+        '25l_above': [2500000, Infinity]
+      };
+      const [min, max] = costRange[answers.projectCost] || [0, Infinity];
+      if (max > scheme.requirements.maxCost) {
+        // Penalize but don't disqualify
+        score -= 10;
+      } else if (min <= scheme.requirements.maxCost) {
+        score += 15;
+      }
+    }
+
+    // Check age
+    if (answers.age) {
+      const ageRange = {
+        'below_21': [18, 21],
+        '21_40': [21, 40],
+        'above_40': [40, 100]
+      };
+      const [min, max] = ageRange[answers.age] || [18, 100];
+      if (min >= scheme.requirements.minAge && max <= scheme.requirements.maxAge) {
+        score += 25;
+      } else if ((min >= scheme.requirements.minAge && max > scheme.requirements.maxAge) ||
+                 (min < scheme.requirements.minAge && max <= scheme.requirements.maxAge)) {
+        score += 12;
+      }
+    }
+
+    // Check state (for CM YUVA)
+    if (scheme.requirements.states) {
+      if (!scheme.requirements.states.includes(answers.state)) {
+        if (key === 'CMYUVA') match = false;
+      } else {
+        score += 30;
+        if (answers.aspirational === 'yes') score += 10;
+      }
+    }
+
+    // Check category
+    if (scheme.requirements.needsCategory && answers.category && answers.category !== 'General') {
+      score += 20;
+    }
+
+    if (match) {
+      result.push({ key, ...scheme, score });
+    }
+  });
+
+  return result.sort((a, b) => b.score - a.score);
+}
+
+function selectOption(questionId, value) {
+  answers[questionId] = value;
+
+  // Update UI
+  document.querySelectorAll(`[data-question="${questionId}"] .option-btn`).forEach(btn => {
+    btn.classList.remove('selected');
+  });
+  document.querySelector(`[data-question="${questionId}"] [data-value="${value}"]`).classList.add('selected');
+
+  updateProgress();
+}
+
+function updateProgress() {
+  const answered = Object.keys(answers).length;
+  const percent = (answered / QUESTIONS.length) * 100;
+  document.getElementById('progressFill').style.width = percent + '%';
+}
+
+function renderQuestions() {
+  const panel = document.getElementById('questionsPanel');
+  panel.innerHTML = '';
+
+  const question = QUESTIONS[currentQuestion];
+  const div = document.createElement('div');
+  div.className = 'question-container';
+  div.setAttribute('data-question', question.id);
+
+  let html = `
+    <div class="question-number">Question ${currentQuestion + 1} / ${QUESTIONS.length}</div>
+    <div class="question-title">${question.title}</div>
+    <div class="options-grid">
+  `;
+
+  question.options.forEach(option => {
+    const selected = answers[question.id] === option.value ? 'selected' : '';
+    html += `
+      <button type="button" class="option-btn ${selected}" data-value="${option.value}"
+              onclick="selectOption('${question.id}', '${option.value}')">
+        <span class="option-icon">${option.icon}</span>
+        <div class="option-label">
+          <div>${option.label}</div>
+          ${option.desc ? `<div class="option-desc">${option.desc}</div>` : ''}
+        </div>
+      </button>
+    `;
+  });
+
+  html += `
+    </div>
+    <div class="button-group">
+      <button class="btn-prev" onclick="previousQuestion()" ${currentQuestion === 0 ? 'disabled' : ''}>← Piche</button>
+      <button class="btn-next" onclick="nextQuestion()" ${!answers[question.id] ? 'disabled' : ''}>Aage →</button>
+    </div>
+  `;
+
+  div.innerHTML = html;
+  panel.appendChild(div);
+
+  updateProgress();
+}
+
+function nextQuestion() {
+  if (currentQuestion < QUESTIONS.length - 1) {
+    currentQuestion++;
+    renderQuestions();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } else {
+    showResults();
+  }
+}
+
+function previousQuestion() {
+  if (currentQuestion > 0) {
+    currentQuestion--;
+    renderQuestions();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+
+function showResults() {
+  document.getElementById('questionsPanel').classList.add('hidden');
+  const resultsPanel = document.getElementById('resultsPanel');
+  resultsPanel.classList.remove('hidden');
+
+  const schemes = getRelevantSchemes();
+
+  // Build summary
+  const summaryHTML = `
+    <div class="summary-title">✓ Tera Profile:</div>
+    <div class="summary-item">📌 Activity: ${answers.activity}</div>
+    <div class="summary-item">🏠 Location: ${answers.location}</div>
+    <div class="summary-item">💰 Project Cost: ${answers.projectCost}</div>
+    <div class="summary-item">👤 Age: ${answers.age}</div>
+    ${answers.state === 'UP' ? `<div class="summary-item">📍 State: Uttar Pradesh</div>` : ''}
+  `;
+  document.getElementById('resultsSummary').innerHTML = summaryHTML;
+
+  // Build schemes
+  const container = document.getElementById('schemsContainer');
+  container.innerHTML = '';
+
+  schemes.forEach((scheme, idx) => {
+    const cardType = idx === 0 ? 'top' : idx <= 1 ? 'good' : 'other';
+    const card = document.createElement('div');
+    card.className = `result-card ${cardType}`;
+
+    let matchPercent = Math.round((scheme.score / 100) * 100);
+    matchPercent = Math.min(100, matchPercent);
+
+    let html = `
+      <div class="result-scheme-name">${idx === 0 ? '🏆 ' : ''}${scheme.name}</div>
+      <div class="result-match">✓ ${matchPercent}% Match</div>
+      <div class="result-description">${scheme.description}</div>
+      <div class="result-highlights">
+    `;
+
+    scheme.highlights.forEach(highlight => {
+      html += `
+        <div class="highlight">
+          <span class="highlight-icon">✓</span>
+          <span>${highlight}</span>
+        </div>
+      `;
+    });
+
+    html += `
+      </div>
+      <div class="cta-buttons">
+        <a href="index.html" class="btn-use-scheme">Use ${scheme.key} Scheme →</a>
+      </div>
+    `;
+
+    card.innerHTML = html;
+    container.appendChild(card);
+  });
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function restart() {
+  currentQuestion = 0;
+  Object.keys(answers).forEach(key => delete answers[key]);
+  document.getElementById('resultsPanel').classList.add('hidden');
+  document.getElementById('questionsPanel').classList.remove('hidden');
+  renderQuestions();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Initialize
+renderQuestions();
+</script>
+
+</body>
+</html>
