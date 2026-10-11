@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Motion Animations - UdyamCare DPR Generator</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .demo-section {
+      margin: 2rem 0;
+      padding: 2rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 12px;
+      color: white;
+    }
+
+    .demo-title {
+      font-size: 1.8rem;
+      margin-bottom: 1.5rem;
+      text-align: center;
+    }
+
+    .demo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+
+    .demo-card {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 1.5rem;
+      border-radius: 8px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .demo-button {
+      padding: 0.75rem 1.5rem;
+      background: white;
+      color: #667eea;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 1rem;
+      width: 100%;
+      margin-top: 1rem;
+    }
+
+    .demo-button:hover {
+      background: #f0f0f0;
+      transform: scale(1.05);
+      transition: all 0.2s ease;
+    }
+
+    .animated-box {
+      width: 100%;
+      height: 100px;
+      background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      color: white;
+    }
+
+    .controls {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+
+    .control-button {
+      padding: 0.5rem 1rem;
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: 1px solid white;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    .control-button:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .back-link {
+      margin: 1rem 0;
+      text-align: center;
+    }
+
+    .back-link a {
+      color: #667eea;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .back-link a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar no-print">
+    <div class="brand">UdyamCare <span>Motion Animation Demo</span></div>
+  </header>
+
+  <main>
+    <div class="back-link">
+      <a href="index.html">← Back to DPR Generator</a>
+    </div>
+
+    <div class="demo-section">
+      <h1 class="demo-title">✨ Motion Animation Examples</h1>
+      <p style="text-align: center; font-size: 1.1rem; margin-bottom: 1rem;">
+        Motion library integrations for smooth, performant animations
+      </p>
+
+      <div class="demo-grid">
+        <!-- Demo 1: Fade In -->
+        <div class="demo-card">
+          <h3>Fade In Animation</h3>
+          <div id="fadeBox" class="animated-box" style="opacity: 0;">
+            Fade In
+          </div>
+          <button class="demo-button" onclick="triggerFade()">Start Fade In</button>
+        </div>
+
+        <!-- Demo 2: Slide In -->
+        <div class="demo-card">
+          <h3>Slide In Animation</h3>
+          <div id="slideBox" class="animated-box" style="transform: translateX(-300px);">
+            Slide In
+          </div>
+          <button class="demo-button" onclick="triggerSlide()">Start Slide</button>
+        </div>
+
+        <!-- Demo 3: Scale Up -->
+        <div class="demo-card">
+          <h3>Scale Up Animation</h3>
+          <div id="scaleBox" class="animated-box" style="transform: scale(0);">
+            Scale Up
+          </div>
+          <button class="demo-button" onclick="triggerScale()">Start Scale</button>
+        </div>
+
+        <!-- Demo 4: Bounce -->
+        <div class="demo-card">
+          <h3>Bounce Animation</h3>
+          <div id="bounceBox" class="animated-box" style="transform: translateY(0);">
+            Bounce
+          </div>
+          <button class="demo-button" onclick="triggerBounce()">Start Bounce</button>
+        </div>
+
+        <!-- Demo 5: Rotate -->
+        <div class="demo-card">
+          <h3>Rotate Animation</h3>
+          <div id="rotateBox" class="animated-box" style="transform: rotate(0deg);">
+            Rotate
+          </div>
+          <button class="demo-button" onclick="triggerRotate()">Start Rotate</button>
+        </div>
+
+        <!-- Demo 6: Pulse -->
+        <div class="demo-card">
+          <h3>Pulse Animation</h3>
+          <div id="pulseBox" class="animated-box" style="opacity: 1;">
+            Pulse
+          </div>
+          <button class="demo-button" onclick="triggerPulse()">Start Pulse</button>
+        </div>
+      </div>
+
+      <div style="margin-top: 2rem; padding: 1.5rem; background: rgba(0,0,0,0.1); border-radius: 8px;">
+        <h3>Code Example</h3>
+        <pre style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 4px; overflow-x: auto;"><code>import { animate } from 'motion';
+
+// Fade in animation
+animate(element, {
+  opacity: [0, 1],
+  duration: 0.6,
+  easing: "ease-out"
+});</code></pre>
+      </div>
+    </div>
+
+    <div style="padding: 2rem; text-align: center; color: #666;">
+      <h3>Integration Ideas for DPR Generator</h3>
+      <ul style="text-align: left; max-width: 600px; margin: 1rem auto; line-height: 1.8;">
+        <li>✅ Form inputs fade in as user scrolls to sections</li>
+        <li>✅ Report cards slide in with staggered timing</li>
+        <li>✅ Financial metrics scale up with a pop effect</li>
+        <li>✅ Success messages animate with a bounce</li>
+        <li>✅ Tab transitions with smooth slide animations</li>
+        <li>✅ Loading states with pulse/spin animations</li>
+      </ul>
+    </div>
+  </main>
+
+  <script type="module">
+    import { animate } from './node_modules/motion/dist/motion.js';
+
+    window.triggerFade = function() {
+      const box = document.getElementById('fadeBox');
+      animate(box, {
+        opacity: [0, 1],
+      }, {
+        duration: 0.6,
+        easing: "ease-out"
+      });
+    };
+
+    window.triggerSlide = function() {
+      const box = document.getElementById('slideBox');
+      animate(box, {
+        transform: ['translateX(-300px)', 'translateX(0)'],
+      }, {
+        duration: 0.8,
+        easing: "ease-out"
+      });
+    };
+
+    window.triggerScale = function() {
+      const box = document.getElementById('scaleBox');
+      animate(box, {
+        transform: ['scale(0)', 'scale(1)'],
+      }, {
+        duration: 0.6,
+        easing: "ease-out"
+      });
+    };
+
+    window.triggerBounce = function() {
+      const box = document.getElementById('bounceBox');
+      animate(box, {
+        transform: [
+          'translateY(0)',
+          'translateY(-20px)',
+          'translateY(0)',
+          'translateY(-10px)',
+          'translateY(0)'
+        ],
+      }, {
+        duration: 0.8,
+        easing: "ease-out"
+      });
+    };
+
+    window.triggerRotate = function() {
+      const box = document.getElementById('rotateBox');
+      animate(box, {
+        transform: ['rotate(0deg)', 'rotate(360deg)'],
+      }, {
+        duration: 1.2,
+        easing: "ease-out"
+      });
+    };
+
+    window.triggerPulse = function() {
+      const box = document.getElementById('pulseBox');
+      animate(box, {
+        opacity: [1, 0.5, 1],
+      }, {
+        duration: 1,
+        repeat: 3,
+        easing: "ease-in-out"
+      });
+    };
+  </script>
+</body>
+</html>

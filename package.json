@@ -1,0 +1,33 @@
+{
+  "name": "udyamcare",
+  "version": "1.0.0",
+  "description": "UdyamCare - Project Report (DPR) Generator for bank loans and government schemes",
+  "main": "dpr-generator/index.html",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "dev": "python3 -m http.server 8000",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sunil3692/Udyamcare.git"
+  },
+  "keywords": [
+    "DPR",
+    "Project Report",
+    "PMEGP",
+    "MUDRA",
+    "Loan",
+    "Bank"
+  ],
+  "author": "Sunil Yadav",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/sunil3692/Udyamcare#issues"
+  },
+  "homepage": "https://github.com/sunil3692/Udyamcare#readme",
+  "dependencies": {
+    "motion": "^14.1.0"
+  },
+  "devDependencies": {}
+}
