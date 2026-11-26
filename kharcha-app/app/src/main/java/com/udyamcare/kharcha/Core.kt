@@ -12,6 +12,7 @@ object L {
     var hindi = true
     fun load(ctx: Context) {
         hindi = ctx.getSharedPreferences("kharcha", Context.MODE_PRIVATE).getString("lang", "hi") == "hi"
+        Cat.loadCustom(ctx)
     }
     fun set(ctx: Context, hi: Boolean) {
         hindi = hi
@@ -34,32 +35,79 @@ object Alias {
 fun tr(hi: String, en: String): String = if (L.hindi) hi else en
 
 // ---------- Categories ----------
-enum class Cat(val key: String, val emoji: String, val hi: String, val en: String, val color: Int, val type: TxType) {
-    FOOD("food", "🍵", "खाना-चाय", "Food", 0xFFF59E0B.toInt(), TxType.DEBIT),
-    GROCERY("grocery", "🛒", "किराना", "Grocery", 0xFF16A34A.toInt(), TxType.DEBIT),
-    STOCK("stock", "📦", "माल/सामान", "Stock", 0xFF2563EB.toInt(), TxType.DEBIT),
-    TRAVEL("travel", "🚌", "सफ़र", "Travel", 0xFF7C3AED.toInt(), TxType.DEBIT),
-    BILL("bill", "🧾", "बिल/EMI", "Bills/EMI", 0xFFDC2626.toInt(), TxType.DEBIT),
-    MEDICAL("medical", "💊", "दवा", "Medical", 0xFFEC4899.toInt(), TxType.DEBIT),
-    HOME("home", "🏠", "घर", "Home", 0xFF0891B2.toInt(), TxType.DEBIT),
-    SHOP("shop", "🛍️", "ख़रीदारी", "Shopping", 0xFFEA580C.toInt(), TxType.DEBIT),
-    LENT("lent", "🤝", "उधार दिया", "Lent", 0xFF9333EA.toInt(), TxType.DEBIT),
-    REPAID("repaid", "↩️", "उधार चुकाया", "Repaid", 0xFF64748B.toInt(), TxType.DEBIT),
-    OUT_OTHER("out_other", "➖", "अन्य", "Other", 0xFF94A3B8.toInt(), TxType.DEBIT),
-
-    SALE("sale", "💰", "बिक्री", "Sale", 0xFF16A34A.toInt(), TxType.CREDIT),
-    SALARY("salary", "💼", "सैलरी", "Salary", 0xFF2563EB.toInt(), TxType.CREDIT),
-    BACK("back", "↩️", "उधार वापस मिला", "Got back", 0xFF0891B2.toInt(), TxType.CREDIT),
-    BORROW("borrow", "🤝", "उधार लिया", "Borrowed", 0xFF9333EA.toInt(), TxType.CREDIT),
-    IN_OTHER("in_other", "➕", "अन्य", "Other", 0xFF94A3B8.toInt(), TxType.CREDIT);
+data class Cat(val key: String, val emoji: String, val hi: String, val en: String, val color: Int, val type: TxType) {
 
     val name2: String get() = tr(hi, en)
     val label: String get() = "$emoji $name2"
+    val isCustom: Boolean get() = key.startsWith("c_")
 
     companion object {
-        fun byKey(k: String): Cat? = values().firstOrNull { it.key == k }
-        fun forType(t: TxType): List<Cat> = values().filter { it.type == t }
+        val FOOD = Cat("food", "🍵", "खाना-चाय", "Food", 0xFFF59E0B.toInt(), TxType.DEBIT)
+        val GROCERY = Cat("grocery", "🛒", "किराना", "Grocery", 0xFF16A34A.toInt(), TxType.DEBIT)
+        val STOCK = Cat("stock", "📦", "माल/सामान", "Stock", 0xFF2563EB.toInt(), TxType.DEBIT)
+        val TRAVEL = Cat("travel", "🚌", "सफ़र", "Travel", 0xFF7C3AED.toInt(), TxType.DEBIT)
+        val BILL = Cat("bill", "🧾", "बिल/EMI", "Bills/EMI", 0xFFDC2626.toInt(), TxType.DEBIT)
+        val MEDICAL = Cat("medical", "💊", "दवा", "Medical", 0xFFEC4899.toInt(), TxType.DEBIT)
+        val HOME = Cat("home", "🏠", "घर", "Home", 0xFF0891B2.toInt(), TxType.DEBIT)
+        val SHOP = Cat("shop", "🛍️", "ख़रीदारी", "Shopping", 0xFFEA580C.toInt(), TxType.DEBIT)
+        val LENT = Cat("lent", "🤝", "उधार दिया", "Lent", 0xFF9333EA.toInt(), TxType.DEBIT)
+        val REPAID = Cat("repaid", "↩️", "उधार चुकाया", "Repaid", 0xFF64748B.toInt(), TxType.DEBIT)
+        val OUT_OTHER = Cat("out_other", "➖", "अन्य", "Other", 0xFF94A3B8.toInt(), TxType.DEBIT)
+
+        val SALE = Cat("sale", "💰", "बिक्री", "Sale", 0xFF16A34A.toInt(), TxType.CREDIT)
+        val SALARY = Cat("salary", "💼", "सैलरी", "Salary", 0xFF2563EB.toInt(), TxType.CREDIT)
+        val BACK = Cat("back", "↩️", "उधार वापस मिला", "Got back", 0xFF0891B2.toInt(), TxType.CREDIT)
+        val BORROW = Cat("borrow", "🤝", "उधार लिया", "Borrowed", 0xFF9333EA.toInt(), TxType.CREDIT)
+        val IN_OTHER = Cat("in_other", "➕", "अन्य", "Other", 0xFF94A3B8.toInt(), TxType.CREDIT)
+
+        private val builtins = listOf(
+            FOOD, GROCERY, STOCK, TRAVEL, BILL, MEDICAL, HOME, SHOP, LENT, REPAID, OUT_OTHER,
+            SALE, SALARY, BACK, BORROW, IN_OTHER
+        )
+        private val palette = listOf(
+            0xFF0D9488, 0xFFD97706, 0xFF4F46E5, 0xFFBE185D, 0xFF65A30D, 0xFF0284C7, 0xFFB91C1C, 0xFF7E22CE
+        ).map { it.toInt() }
+
+        private var custom: List<Cat> = emptyList()
+
+        val customList: List<Cat> get() = custom
+        fun all(): List<Cat> = builtins + custom
+        fun byKey(k: String): Cat? = all().firstOrNull { it.key == k }
+
+        /** Built-ins, then the user's own, with "Other" always last. */
+        fun forType(t: TxType): List<Cat> = all().filter { it.type == t }.sortedBy { if (it.key.endsWith("_other")) 1 else 0 }
         fun other(t: TxType): Cat = if (t == TxType.DEBIT) OUT_OTHER else IN_OTHER
+
+        private fun prefs(ctx: Context) = ctx.getSharedPreferences("kharcha_cats", Context.MODE_PRIVATE)
+
+        fun loadCustom(ctx: Context) {
+            val s = prefs(ctx).getString("list", "") ?: ""
+            custom = s.lines().filter { it.isNotBlank() }.mapNotNull { line ->
+                val p = line.split("|")
+                if (p.size < 5) null
+                else Cat(p[0], p[1], p[2], p[2], p[3].toIntOrNull() ?: 0xFF94A3B8.toInt(),
+                    if (p[4] == "0") TxType.DEBIT else TxType.CREDIT)
+            }
+        }
+
+        private fun saveCustom(ctx: Context) {
+            prefs(ctx).edit().putString(
+                "list", custom.joinToString("\n") { "${it.key}|${it.emoji}|${it.hi}|${it.color}|${it.type.ordinal}" }
+            ).apply()
+        }
+
+        fun addCustom(ctx: Context, name: String, emoji: String, type: TxType): Cat {
+            val clean = name.replace("|", " ").replace("\n", " ").trim()
+            val c = Cat("c_${System.currentTimeMillis()}", emoji, clean, clean, palette[custom.size % palette.size], type)
+            custom = custom + c
+            saveCustom(ctx)
+            return c
+        }
+
+        fun removeCustom(ctx: Context, key: String) {
+            custom = custom.filter { it.key != key }
+            saveCustom(ctx)
+        }
     }
 }
 

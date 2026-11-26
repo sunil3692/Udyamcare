@@ -92,6 +92,11 @@ class Db(context: Context) : SQLiteOpenHelper(context.applicationContext, "kharc
         writableDatabase.update("txn", v, "id=?", arrayOf(id.toString()))
     }
 
+    fun reassignCategory(oldKey: String, newKey: String) {
+        val v = ContentValues().apply { put("category", newKey) }
+        writableDatabase.update("txn", v, "category=?", arrayOf(oldKey))
+    }
+
     fun skip(id: Long) {
         val v = ContentValues().apply { put("status", 2) }
         writableDatabase.update("txn", v, "id=?", arrayOf(id.toString()))

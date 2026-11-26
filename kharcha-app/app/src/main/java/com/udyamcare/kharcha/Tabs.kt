@@ -223,7 +223,9 @@ fun MainActivity.showEntryDialog(t: Txn?) {
     val chipsBox = FrameLayout(this)
     fun rebuild() {
         chipsBox.removeAllViews()
-        chipsBox.addView(categoryChips(Cat.forType(type), sel) { c -> sel = c; rebuild() })
+        chipsBox.addView(categoryChips(Cat.forType(type), sel, onAdd = {
+            showAddCategoryDialog(type) { c -> sel = c; rebuild() }
+        }) { c -> sel = c; rebuild() })
     }
 
     if (t == null) {
@@ -478,6 +480,45 @@ fun MainActivity.buildSettings(): View {
     }, lp(0, WRAP, 1f, l = dp(6)))
     c1.addView(langRow, lp(MATCH, WRAP, t = dp(8)))
     col.addView(c1, lp(MATCH, WRAP, b = dp(12)))
+
+    // My categories
+    val cc = card()
+    cc.addView(label(tr("मेरी category", "My categories"), 15f, C.TEXT, true))
+    val mine = Cat.customList
+    if (mine.isEmpty()) {
+        cc.addView(label(tr("अभी कोई नहीं। \"किस काम का?\" में ➕ नई दबाकर भी जोड़ सकते हो।",
+            "None yet. You can also tap ➕ New under Category."), 12f, C.SUB), lp(WRAP, WRAP, t = dp(6)))
+    }
+    for (c in mine) {
+        val row = horizontal().apply { setPadding(0, dp(8), 0, dp(8)) }
+        row.addView(label(c.emoji, 18f), lp(dp(34), WRAP))
+        row.addView(label(c.name2 + if (c.type == TxType.DEBIT) tr("  (खर्च)", "  (spent)") else tr("  (आमदनी)", "  (earned)"), 14f), lp(0, WRAP, 1f))
+        row.addView(label("✕", 18f, C.RED, true).apply {
+            setPadding(dp(12), dp(4), dp(4), dp(4))
+            setOnClickListener {
+                AlertDialog.Builder(this@buildSettings)
+                    .setMessage(tr("\"${c.name2}\" हटानी है? इसकी एंट्री \"अन्य\" में चली जाएँगी।",
+                        "Remove \"${c.name2}\"? Its entries move to \"Other\"."))
+                    .setPositiveButton(tr("हाँ", "Yes")) { _, _ ->
+                        db.reassignCategory(c.key, Cat.other(c.type).key)
+                        Cat.removeCustom(this@buildSettings, c.key)
+                        render()
+                    }
+                    .setNegativeButton(tr("नहीं", "No"), null)
+                    .show()
+            }
+        })
+        cc.addView(row)
+    }
+    val addRow = horizontal()
+    addRow.addView(chip(tr("➕ खर्च category", "➕ Spent category"), C.RED_BG, C.RED) {
+        showAddCategoryDialog(TxType.DEBIT) { render() }
+    }, lp(WRAP, WRAP, r = dp(8)))
+    addRow.addView(chip(tr("➕ आमदनी category", "➕ Earned category"), C.GREEN_BG, C.GREEN) {
+        showAddCategoryDialog(TxType.CREDIT) { render() }
+    }, lp(WRAP, WRAP))
+    cc.addView(addRow, lp(WRAP, WRAP, t = dp(8)))
+    col.addView(cc, lp(MATCH, WRAP, b = dp(12)))
 
     // Detection
     val c2 = card()

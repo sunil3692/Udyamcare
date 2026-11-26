@@ -90,7 +90,11 @@ class PopupActivity : Activity() {
         }
 
         body.addView(label(tr("किस काम का? टैप करते ही सेव", "Category — tap to save"), 13f, C.SUB, true), lp(WRAP, WRAP, t = dp(4)))
-        body.addView(categoryChips(Cat.forType(t.type), null) { cat ->
+        body.addView(categoryChips(Cat.forType(t.type), null, onAdd = {
+            showAddCategoryDialog(t.type) { c ->
+                persist(t, party.text.toString().trim(), c.key); done()
+            }
+        }) { cat ->
             persist(t, party.text.toString().trim(), cat.key); done()
         })
 

@@ -81,7 +81,7 @@ fun Context.primaryButton(text: String, onClick: () -> Unit): TextView =
     }
 
 /** Grid of category chips. The tag of each child is its Cat. */
-fun Context.categoryChips(cats: List<Cat>, selected: Cat?, onPick: (Cat) -> Unit): GridLayout {
+fun Context.categoryChips(cats: List<Cat>, selected: Cat?, onAdd: (() -> Unit)? = null, onPick: (Cat) -> Unit): GridLayout {
     val grid = GridLayout(this).apply { columnCount = 3 }
     cats.forEach { c ->
         val on = c == selected
@@ -96,7 +96,67 @@ fun Context.categoryChips(cats: List<Cat>, selected: Cat?, onPick: (Cat) -> Unit
             .apply { width = 0; setMargins(dp(3), dp(3), dp(3), dp(3)) }
         grid.addView(tv, p)
     }
+    if (onAdd != null) {
+        val add = label("➕\n" + tr("नई", "New"), 12f, C.PRIMARY, true).apply {
+            gravity = Gravity.CENTER
+            background = rounded(C.GREEN_BG, 14)
+            setPadding(dp(4), dp(10), dp(4), dp(10))
+            setOnClickListener { onAdd() }
+        }
+        val p = GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED, 1f), GridLayout.spec(GridLayout.UNDEFINED, 1f))
+            .apply { width = 0; setMargins(dp(3), dp(3), dp(3), dp(3)) }
+        grid.addView(add, p)
+    }
     return grid
+}
+
+/** Dialog to create the user's own category. Needs an Activity context. */
+fun Context.showAddCategoryDialog(type: TxType, onCreated: (Cat) -> Unit) {
+    val emojis = listOf("🏷️", "☕", "🍔", "⛽", "📱", "🎓", "👕", "🎁", "🔧", "🐄", "🌾", "🚗", "💡", "🏦", "💵", "📚", "🧴", "🎬")
+    var sel = emojis[0]
+    val box = vertical().apply { setPadding(dp(20), dp(16), dp(20), dp(8)) }
+    box.addView(label(
+        tr("नई category", "New category") + if (type == TxType.DEBIT) tr(" (खर्च)", " (spent)") else tr(" (आमदनी)", " (earned)"),
+        18f, C.TEXT, true
+    ))
+    val name = android.widget.EditText(this).apply {
+        hint = tr("नाम, जैसे: दूध, पेट्रोल, मज़दूरी", "Name, e.g. Milk, Petrol, Labour")
+        setSingleLine()
+        inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+    }
+    box.addView(name, lp(MATCH, WRAP, t = dp(8)))
+    box.addView(label(tr("इमोजी चुनो", "Pick an icon"), 13f, C.SUB, true), lp(WRAP, WRAP, t = dp(10), b = dp(4)))
+    val grid = GridLayout(this).apply { columnCount = 6 }
+    fun paint() {
+        grid.removeAllViews()
+        emojis.forEach { e ->
+            val on = e == sel
+            grid.addView(label(e, 22f).apply {
+                gravity = Gravity.CENTER
+                background = rounded(if (on) C.GREEN_BG else C.CHIP, 12)
+                setPadding(dp(8), dp(8), dp(8), dp(8))
+                setOnClickListener { sel = e; paint() }
+            }, GridLayout.LayoutParams().apply { setMargins(dp(3), dp(3), dp(3), dp(3)) })
+        }
+    }
+    paint()
+    box.addView(grid)
+
+    val dialog = android.app.AlertDialog.Builder(this)
+        .setView(box)
+        .setPositiveButton(tr("जोड़ो", "Add"), null)
+        .setNegativeButton(tr("रद्द", "Cancel"), null)
+        .create()
+    dialog.show()
+    dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+        val n = name.text.toString().trim()
+        if (n.isEmpty()) {
+            name.error = tr("नाम लिखो", "Enter a name"); return@setOnClickListener
+        }
+        val c = Cat.addCustom(this, n, sel, type)
+        dialog.dismiss()
+        onCreated(c)
+    }
 }
 
 // ---------------- Charts ----------------
