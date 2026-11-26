@@ -20,6 +20,17 @@ object L {
     val locale: Locale get() = if (hindi) Locale("hi", "IN") else Locale("en", "IN")
 }
 
+/** Remembers the name you typed for an account number / UPI id so it fills in next time. */
+object Alias {
+    private fun prefs(ctx: Context) = ctx.getSharedPreferences("kharcha_alias", Context.MODE_PRIVATE)
+    fun get(ctx: Context, raw: String): String? =
+        if (raw.isBlank()) null else prefs(ctx).getString(raw.trim().lowercase(), null)
+    fun put(ctx: Context, raw: String, name: String) {
+        if (raw.isBlank() || name.isBlank() || raw.trim().equals(name.trim(), true)) return
+        prefs(ctx).edit().putString(raw.trim().lowercase(), name.trim()).apply()
+    }
+}
+
 fun tr(hi: String, en: String): String = if (L.hindi) hi else en
 
 // ---------- Categories ----------

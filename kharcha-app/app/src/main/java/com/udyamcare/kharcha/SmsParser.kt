@@ -19,8 +19,14 @@ object SmsParser {
         """(?i)\b(?:debited|credited)\s+(?:by|for|with)\s+(?:rs\.?|inr|₹)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)"""
     )
     private val infoRe = Regex("""(?i)\bUPI/[A-Za-z0-9]+/\d+/([^/\s][^/]{1,30})/""")
-    private val debitRe = Regex("""(?i)\b(debited|debit of|spent|sent|paid|withdrawn|purchase)\b""")
-    private val creditRe = Regex("""(?i)\b(credited|credit of|received|deposited)\b""")
+    // "Dr." / "Cr." (Bank of Baroda etc.) only count when followed by from/to/by/at, so "Dr. Sharma" is safe.
+    private val debitRe = Regex(
+        """(?i)\b(debited|debit of|spent|sent|paid|withdrawn|purchase)\b|\bdr\b\.?(?=\s+(?:from|to|by|at)\b)"""
+    )
+    private val creditRe = Regex(
+        """(?i)\b(credited|credit of|received|deposited)\b|\bcr\b\.?(?=\s+(?:to|from|by)\b)"""
+    )
+    private val maskedRe = Regex("""(?i)\b(to|from|by)\s+(?:a/c\s+|acct?\.?\s+|account\s+)?(x{2,}\d{3,6})\b""")
     private val skipRe = Regex(
         """(?i)\b(otp|one time password|collect request|requested|will be debited|will be credited|""" +
             """pre-?approved|apply now|offer|cashback offer|due on|due by|unsuccessful|failed|declined)\b"""
@@ -80,6 +86,9 @@ object SmsParser {
                 val name = m.groupValues[2].trim().trimEnd('.', '-', ' ')
                 if (name.length >= 2 && name.any { it.isLetter() }) return name
             }
+        }
+        maskedRe.findAll(text).forEach { m ->
+            if (m.groupValues[1].lowercase() in wanted) return "A/C " + m.groupValues[2].uppercase()
         }
         return ""
     }

@@ -70,8 +70,9 @@ class PopupActivity : Activity() {
             if (debit) tr("किसको दिए?", "Who did you pay?") else tr("किससे आए?", "Who paid you?"),
             13f, C.SUB, true
         ))
+        val shown = Alias.get(this, t.party) ?: t.party
         val party = AutoCompleteTextView(this).apply {
-            setText(t.party)
+            setText(shown)
             hint = tr("नाम लिखो", "Type a name")
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
             setSingleLine()
@@ -81,16 +82,16 @@ class PopupActivity : Activity() {
         body.addView(party, lp(MATCH, WRAP, b = dp(6)))
 
         // Suggestion from history
-        val last = db.lastCategory(t.party, t.type)?.let { Cat.byKey(it) }
+        val last = db.lastCategory(shown, t.type)?.let { Cat.byKey(it) }
         if (last != null) {
             body.addView(chip(tr("पिछली बार: ", "Same as last time: ") + last.label, C.GREEN_BG, C.GREEN) {
-                db.save(id, party.text.toString().trim(), last.key); done()
+                persist(t, party.text.toString().trim(), last.key); done()
             }, lp(WRAP, WRAP, b = dp(6)))
         }
 
         body.addView(label(tr("किस काम का? टैप करते ही सेव", "Category — tap to save"), 13f, C.SUB, true), lp(WRAP, WRAP, t = dp(4)))
         body.addView(categoryChips(Cat.forType(t.type), null) { cat ->
-            db.save(id, party.text.toString().trim(), cat.key); done()
+            persist(t, party.text.toString().trim(), cat.key); done()
         })
 
         body.addView(chip(tr("बाद में / छोड़ो", "Later / Skip"), C.CHIP, C.SUB) {
@@ -102,6 +103,11 @@ class PopupActivity : Activity() {
         val outer = FrameLayout(this).apply { setPadding(dp(10), dp(10), dp(10), dp(10)) }
         outer.addView(box)
         setContentView(ScrollView(this).apply { addView(outer) })
+    }
+
+    private fun persist(t: Txn, typed: String, catKey: String) {
+        Alias.put(this, t.party, typed)
+        db.save(t.id, typed, catKey)
     }
 
     private fun done() {

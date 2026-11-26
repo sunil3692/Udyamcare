@@ -26,7 +26,8 @@ object Notifier {
         val debit = t.type == TxType.DEBIT
         val title = if (debit) tr("${formatRupees(t.amountPaise)} गए", "${formatRupees(t.amountPaise)} paid")
         else tr("${formatRupees(t.amountPaise)} आए", "${formatRupees(t.amountPaise)} received")
-        val who = if (t.party.isNotBlank()) t.party else "?"
+        val shown = Alias.get(context, t.party) ?: t.party
+        val who = if (shown.isNotBlank()) shown else "?"
         val text = (if (debit) tr("किसको: ", "To: ") else tr("किससे: ", "From: ")) + who +
             tr("  — टैप करके बताओ", "  — tap to answer")
 
@@ -44,7 +45,7 @@ object Notifier {
 
         // Quick-save buttons: same category as last time with this person first, then common ones.
         val db = Db(context)
-        val suggested = db.lastCategory(t.party, t.type)?.let { Cat.byKey(it) }
+        val suggested = db.lastCategory(shown, t.type)?.let { Cat.byKey(it) }
         val quick = (listOfNotNull(suggested) + Cat.forType(t.type)).distinct().take(2)
         quick.forEachIndexed { i, cat ->
             val i2 = Intent(context, QuickActionReceiver::class.java)

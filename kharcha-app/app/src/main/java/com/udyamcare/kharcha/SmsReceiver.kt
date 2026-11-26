@@ -25,7 +25,7 @@ class QuickActionReceiver : BroadcastReceiver() {
         val key = intent.getStringExtra("cat") ?: return
         val db = Db(context)
         val t = db.get(id) ?: return
-        db.save(id, t.party, key)
+        db.save(id, Alias.get(context, t.party) ?: t.party, key)
         Notifier.cancel(context, id)
     }
 }
