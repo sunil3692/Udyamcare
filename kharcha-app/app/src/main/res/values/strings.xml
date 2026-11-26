@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">खर्चा Kharcha</string>
+    <string name="channel_name">Payment alerts / पेमेंट अलर्ट</string>
+
+    <string-array name="cat_debit">
+        <item>खाना / चाय Food</item>
+        <item>किराना Grocery</item>
+        <item>माल / सामान Stock</item>
+        <item>सफ़र Travel</item>
+        <item>बिल Bill/EMI</item>
+        <item>दवा Medical</item>
+        <item>उधार दिया Lent</item>
+        <item>घर Home</item>
+        <item>अन्य Other</item>
+    </string-array>
+
+    <string-array name="cat_credit">
+        <item>बिक्री Sale</item>
+        <item>उधार वापस Repaid</item>
+        <item>सैलरी Salary</item>
+        <item>उधार लिया Borrowed</item>
+        <item>अन्य Other</item>
+    </string-array>
+</resources>
