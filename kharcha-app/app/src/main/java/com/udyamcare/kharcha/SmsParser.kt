@@ -15,8 +15,12 @@ data class ParsedTx(
 object SmsParser {
 
     private val amountRe = Regex("""(?i)(?:rs\.?|inr|₹)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)""")
-    private val debitRe = Regex("""(?i)\b(debited|spent|sent|paid|withdrawn|purchase)\b""")
-    private val creditRe = Regex("""(?i)\b(credited|received|deposited)\b""")
+    private val amountByRe = Regex(
+        """(?i)\b(?:debited|credited)\s+(?:by|for|with)\s+(?:rs\.?|inr|₹)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)"""
+    )
+    private val infoRe = Regex("""(?i)\bUPI/[A-Za-z0-9]+/\d+/([^/\s][^/]{1,30})/""")
+    private val debitRe = Regex("""(?i)\b(debited|debit of|spent|sent|paid|withdrawn|purchase)\b""")
+    private val creditRe = Regex("""(?i)\b(credited|credit of|received|deposited)\b""")
     private val skipRe = Regex(
         """(?i)\b(otp|one time password|collect request|requested|will be debited|will be credited|""" +
             """pre-?approved|apply now|offer|cashback offer|due on|due by|unsuccessful|failed|declined)\b"""
@@ -27,7 +31,7 @@ object SmsParser {
     private val nameRe = Regex(
         """(?i)\b(to|from|by|at)\s+(?!a/c\b|acct\b|account\b|your\b|vpa\b|card\b|xx|\d|bank\b|the\b)""" +
             """([a-z][a-z0-9 .&'-]{1,30}?)""" +
-            """(?=\s+(?:on|via|using|ref|upi|txn|trf|avl|bal|through|is|has|dated|from|for)\b|[.,(;]|\s+-|$)"""
+            """(?=\s+(?:on|via|using|ref\w*|upi|txn|trf|avl|bal|through|is|has|dated|from|for)\b|[.,(;]|\s+-|$)"""
     )
     private val refRe = Regex(
         """(?i)(?:ref(?:erence)?\.?\s*(?:no\.?|number|id)?|rrn|txn\s*(?:id|no)|utr)\s*[:#.\-]?\s*([a-z0-9]{8,})"""
@@ -37,10 +41,10 @@ object SmsParser {
         val text = body.replace('\n', ' ').replace(Regex("""\s+"""), " ").trim()
         if (text.isEmpty() || skipRe.containsMatchIn(text)) return null
 
-        val amount = amountRe.findAll(text).firstOrNull { m ->
+        val amountText = (amountRe.findAll(text).firstOrNull { m ->
             val before = text.substring(maxOf(0, m.range.first - 16), m.range.first)
             !balanceHintRe.containsMatchIn(before)
-        } ?: return null
+        } ?: amountByRe.find(text))?.groupValues?.get(1) ?: return null
 
         val dm = debitRe.find(text)
         val cm = creditRe.find(text)
@@ -53,7 +57,7 @@ object SmsParser {
         }
 
         val paise = try {
-            BigDecimal(amount.groupValues[1].replace(",", "")).movePointRight(2).toLong()
+            BigDecimal(amountText.replace(",", "")).movePointRight(2).toLong()
         } catch (e: NumberFormatException) {
             return null
         }
@@ -64,6 +68,10 @@ object SmsParser {
 
     private fun extractParty(text: String, type: TxType): String {
         val wanted = if (type == TxType.DEBIT) setOf("to", "at") else setOf("from", "by")
+        infoRe.find(text)?.let { m ->
+            val n = m.groupValues[1].trim()
+            if (n.any { it.isLetter() }) return n
+        }
         vpaRe.findAll(text).forEach { m ->
             if (m.groupValues[1].lowercase() in wanted) return m.groupValues[2]
         }

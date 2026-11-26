@@ -4,16 +4,16 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
 import android.view.ViewGroup
-import android.widget.Button
-import android.widget.EditText
-import android.widget.GridLayout
-import android.widget.LinearLayout
+import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
+import android.widget.FrameLayout
 import android.widget.ScrollView
-import android.widget.TextView
+import android.widget.Toast
 
 /** The popup: shows the payment and asks who it was + category. One tap on a category saves it. */
 class PopupActivity : Activity() {
@@ -22,7 +22,10 @@ class PopupActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        L.load(this)
         db = Db(this)
+        window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         render(intent.getLongExtra("id", -1))
     }
 
@@ -40,65 +43,73 @@ class PopupActivity : Activity() {
         Notifier.cancel(this, id)
 
         val debit = t.type == TxType.DEBIT
-        val pad = dp(16)
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad, pad, pad)
+        val accent = if (debit) C.RED else C.GREEN
+        val remaining = db.pendingCount() - 1
+
+        val box = vertical().apply { background = rounded(C.CARD, 24) }
+
+        // Coloured header
+        val header = vertical().apply {
+            background = rounded(accent, 24)
+            setPadding(dp(20), dp(18), dp(20), dp(18))
+            gravity = Gravity.CENTER
         }
+        header.addView(label(
+            if (debit) tr("↑ पैसे गए", "↑ Money paid") else tr("↓ पैसे आए", "↓ Money received"),
+            14f, 0xCCFFFFFF.toInt(), true
+        ))
+        header.addView(label(formatRupees(t.amountPaise), 34f, 0xFFFFFFFF.toInt(), true).apply { gravity = Gravity.CENTER })
+        if (remaining > 0) {
+            header.addView(label(tr("और $remaining पेमेंट बाकी हैं", "$remaining more waiting"), 12f, 0xCCFFFFFF.toInt()))
+        }
+        box.addView(header, lp(MATCH, WRAP))
 
-        root.addView(TextView(this).apply {
-            text = (if (debit) "− " else "+ ") + formatRupees(t.amountPaise)
-            textSize = 30f
-            setTextColor(if (debit) Color.rgb(198, 40, 40) else Color.rgb(46, 125, 50))
-            gravity = Gravity.CENTER
-        })
-        root.addView(TextView(this).apply {
-            text = if (debit) "पैसे किसको गए? / Paid to?" else "पैसे किससे आए? / Received from?"
-            textSize = 15f
-            gravity = Gravity.CENTER
-        })
+        val body = vertical().apply { setPadding(dp(16), dp(14), dp(16), dp(16)) }
 
-        val party = EditText(this).apply {
+        body.addView(label(
+            if (debit) tr("किसको दिए?", "Who did you pay?") else tr("किससे आए?", "Who paid you?"),
+            13f, C.SUB, true
+        ))
+        val party = AutoCompleteTextView(this).apply {
             setText(t.party)
-            hint = if (debit) "नाम / Name" else "नाम / Name"
+            hint = tr("नाम लिखो", "Type a name")
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
             setSingleLine()
+            threshold = 1
+            setAdapter(ArrayAdapter(this@PopupActivity, android.R.layout.simple_dropdown_item_1line, db.partyNames()))
         }
-        root.addView(party, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        body.addView(party, lp(MATCH, WRAP, b = dp(6)))
 
-        root.addView(TextView(this).apply {
-            text = "किस काम का? एक टैप में सेव / Tap a category to save"
-            textSize = 13f
-            setPadding(0, dp(8), 0, dp(4))
+        // Suggestion from history
+        val last = db.lastCategory(t.party, t.type)?.let { Cat.byKey(it) }
+        if (last != null) {
+            body.addView(chip(tr("पिछली बार: ", "Same as last time: ") + last.label, C.GREEN_BG, C.GREEN) {
+                db.save(id, party.text.toString().trim(), last.key); done()
+            }, lp(WRAP, WRAP, b = dp(6)))
+        }
+
+        body.addView(label(tr("किस काम का? टैप करते ही सेव", "Category — tap to save"), 13f, C.SUB, true), lp(WRAP, WRAP, t = dp(4)))
+        body.addView(categoryChips(Cat.forType(t.type), null) { cat ->
+            db.save(id, party.text.toString().trim(), cat.key); done()
         })
 
-        val grid = GridLayout(this).apply { columnCount = 2 }
-        categoriesFor(this, t.type).forEach { label ->
-            val b = Button(this).apply {
-                text = label
-                isAllCaps = false
-                setOnClickListener {
-                    db.save(id, party.text.toString().trim(), label)
-                    next()
-                }
-            }
-            val lp = GridLayout.LayoutParams(
-                GridLayout.spec(GridLayout.UNDEFINED, 1f), GridLayout.spec(GridLayout.UNDEFINED, 1f)
-            ).apply { width = 0 }
-            grid.addView(b, lp)
-        }
-        root.addView(grid)
+        body.addView(chip(tr("बाद में / छोड़ो", "Later / Skip"), C.CHIP, C.SUB) {
+            db.skip(id); next()
+        }, lp(WRAP, WRAP, t = dp(10)).apply { gravity = Gravity.CENTER_HORIZONTAL })
 
-        root.addView(Button(this).apply {
-            text = "छोड़ो / Skip"
-            isAllCaps = false
-            setOnClickListener { db.skip(id); next() }
-        })
+        box.addView(body)
 
-        setContentView(ScrollView(this).apply { addView(root) })
+        val outer = FrameLayout(this).apply { setPadding(dp(10), dp(10), dp(10), dp(10)) }
+        outer.addView(box)
+        setContentView(ScrollView(this).apply { addView(outer) })
     }
 
-    /** After saving, show the next unanswered payment if there is one, else close. */
+    private fun done() {
+        Toast.makeText(this, tr("✔ सेव हो गया", "✔ Saved"), Toast.LENGTH_SHORT).show()
+        next()
+    }
+
+    /** Show the next unanswered payment if there is one, else close. */
     private fun next() {
         val n = db.nextPending()
         if (n != null) render(n.id) else finish()

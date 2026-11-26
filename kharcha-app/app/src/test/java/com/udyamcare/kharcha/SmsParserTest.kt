@@ -53,4 +53,26 @@ class SmsParserTest {
         assertNull(SmsParser.parse("Pre-approved loan offer of Rs.5,00,000 for you. Apply now"))
         assertNull(SmsParser.parse("Hello, how are you?"))
     }
+
+    @Test fun sbiStyle() {
+        val p = SmsParser.parse("Dear UPI user A/C X1234 debited by 500.0 on date 26Nov26 trf to RAMESH KUMAR Refno 123456789012. If not u? call 1800")!!
+        assertEquals(50000L, p.amountPaise)
+        assertEquals(TxType.DEBIT, p.type)
+        assertEquals("RAMESH KUMAR", p.party)
+        assertEquals("123456789012", p.ref)
+    }
+
+    @Test fun paytmPaid() {
+        val p = SmsParser.parse("Paid Rs.120 to Sharma Tea Stall using Paytm UPI. UPI Ref: 556677889900")!!
+        assertEquals(12000L, p.amountPaise)
+        assertEquals(TxType.DEBIT, p.type)
+        assertEquals("Sharma Tea Stall", p.party)
+    }
+
+    @Test fun infoField() {
+        val p = SmsParser.parse("A/c XX1234 credited Rs.2000.00 on 26-11-26. Info: UPI/CR/445566778899/SITA DEVI/HDFC. Avl Bal Rs.7000")!!
+        assertEquals(TxType.CREDIT, p.type)
+        assertEquals("SITA DEVI", p.party)
+        assertEquals(200000L, p.amountPaise)
+    }
 }

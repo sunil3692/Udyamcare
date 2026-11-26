@@ -22,11 +22,10 @@ class SmsReceiver : BroadcastReceiver() {
 class QuickActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val id = intent.getLongExtra("id", -1)
-        val idx = intent.getIntExtra("cat", 0)
+        val key = intent.getStringExtra("cat") ?: return
         val db = Db(context)
         val t = db.get(id) ?: return
-        val cats = categoriesFor(context, t.type)
-        db.save(id, t.party, cats.getOrElse(idx) { cats.last() })
+        db.save(id, t.party, key)
         Notifier.cancel(context, id)
     }
 }
