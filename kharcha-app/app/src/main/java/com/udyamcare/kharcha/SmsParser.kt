@@ -9,6 +9,7 @@ data class ParsedTx(
     val type: TxType,
     val party: String,
     val ref: String?,
+    val balancePaise: Long? = null,
 )
 
 /** Pure Kotlin (no Android classes) so it can be unit-tested on the JVM. */
@@ -38,6 +39,9 @@ object SmsParser {
         """(?i)\b(to|from|by|at)\s+(?!a/c\b|acct\b|account\b|your\b|vpa\b|card\b|xx|\d|bank\b|the\b)""" +
             """([a-z][a-z0-9 .&'-]{1,30}?)""" +
             """(?=\s+(?:on|via|using|ref\w*|upi|txn|trf|avl|bal|through|is|has|dated|from|for)\b|[.,(;]|\s+-|$)"""
+    )
+    private val balRe = Regex(
+        """(?i)\b(?:avl\.?\s*bal(?:ance)?|available\s+bal(?:ance)?|bal(?:ance)?)\s*[:\-]?\s*(?:rs\.?|inr|₹)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)"""
     )
     private val refRe = Regex(
         """(?i)(?:ref(?:erence)?\.?\s*(?:no\.?|number|id)?|rrn|txn\s*(?:id|no)|utr)\s*[:#.\-]?\s*([a-z0-9]{8,})"""
@@ -69,7 +73,7 @@ object SmsParser {
         }
         if (paise <= 0) return null
 
-        return ParsedTx(paise, type, extractParty(text, type), extractRef(text))
+        return ParsedTx(paise, type, extractParty(text, type), extractRef(text), extractBalance(text))
     }
 
     private fun extractParty(text: String, type: TxType): String {
@@ -91,6 +95,15 @@ object SmsParser {
             if (m.groupValues[1].lowercase() in wanted) return "A/C " + m.groupValues[2].uppercase()
         }
         return ""
+    }
+
+    private fun extractBalance(text: String): Long? {
+        val g = balRe.find(text)?.groupValues?.get(1) ?: return null
+        return try {
+            BigDecimal(g.replace(",", "")).movePointRight(2).toLong()
+        } catch (e: NumberFormatException) {
+            null
+        }
     }
 
     private fun extractRef(text: String): String? =

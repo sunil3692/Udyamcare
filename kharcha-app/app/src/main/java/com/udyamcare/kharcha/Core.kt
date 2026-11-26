@@ -32,6 +32,20 @@ object Alias {
     }
 }
 
+data class OpeningBal(val bank: Long, val cash: Long, val from: Long, val isSet: Boolean)
+
+/** Opening balance (bank + cash, in paise) as on the 1st of the month the user set it. */
+object Opening {
+    private fun prefs(ctx: Context) = ctx.getSharedPreferences("kharcha_open", Context.MODE_PRIVATE)
+    fun get(ctx: Context): OpeningBal {
+        val p = prefs(ctx)
+        return OpeningBal(p.getLong("bank", 0), p.getLong("cash", 0), p.getLong("from", 0), p.getBoolean("set", false))
+    }
+    fun set(ctx: Context, bank: Long, cash: Long, from: Long) {
+        prefs(ctx).edit().putLong("bank", bank).putLong("cash", cash).putLong("from", from).putBoolean("set", true).apply()
+    }
+}
+
 fun tr(hi: String, en: String): String = if (L.hindi) hi else en
 
 // ---------- Categories ----------
@@ -52,6 +66,7 @@ data class Cat(val key: String, val emoji: String, val hi: String, val en: Strin
         val SHOP = Cat("shop", "🛍️", "ख़रीदारी", "Shopping", 0xFFEA580C.toInt(), TxType.DEBIT)
         val LENT = Cat("lent", "🤝", "उधार दिया", "Lent", 0xFF9333EA.toInt(), TxType.DEBIT)
         val REPAID = Cat("repaid", "↩️", "उधार चुकाया", "Repaid", 0xFF64748B.toInt(), TxType.DEBIT)
+        val ATM = Cat("atm", "🏧", "ATM/नकद निकाला", "ATM cash out", 0xFF475569.toInt(), TxType.DEBIT)
         val OUT_OTHER = Cat("out_other", "➖", "अन्य", "Other", 0xFF94A3B8.toInt(), TxType.DEBIT)
 
         val SALE = Cat("sale", "💰", "बिक्री", "Sale", 0xFF16A34A.toInt(), TxType.CREDIT)
@@ -61,7 +76,7 @@ data class Cat(val key: String, val emoji: String, val hi: String, val en: Strin
         val IN_OTHER = Cat("in_other", "➕", "अन्य", "Other", 0xFF94A3B8.toInt(), TxType.CREDIT)
 
         private val builtins = listOf(
-            FOOD, GROCERY, STOCK, TRAVEL, BILL, MEDICAL, HOME, SHOP, LENT, REPAID, OUT_OTHER,
+            FOOD, GROCERY, STOCK, TRAVEL, BILL, MEDICAL, HOME, SHOP, LENT, REPAID, ATM, OUT_OTHER,
             SALE, SALARY, BACK, BORROW, IN_OTHER
         )
         private val palette = listOf(

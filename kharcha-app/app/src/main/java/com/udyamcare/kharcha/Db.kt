@@ -15,9 +15,16 @@ data class Txn(
     val note: String,
     val time: Long,
     val status: Int, // 0 = pending, 1 = saved, 2 = skipped
+    val mode: Int = 0, // 0 = bank/UPI, 1 = cash
 )
 
-class Db(context: Context) : SQLiteOpenHelper(context.applicationContext, "kharcha.db", null, 2) {
+/** Money movement in a period. bankOut includes ATM withdrawals; cashIn includes them too. */
+data class Flow(val bankIn: Long, val bankOut: Long, val cashIn: Long, val cashOut: Long, val atm: Long) {
+    val inReal: Long get() = bankIn + cashIn - atm
+    val outReal: Long get() = bankOut - atm + cashOut
+}
+
+class Db(context: Context) : SQLiteOpenHelper(context.applicationContext, "kharcha.db", null, 3) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -31,14 +38,24 @@ class Db(context: Context) : SQLiteOpenHelper(context.applicationContext, "kharc
                 time INTEGER NOT NULL,
                 status INTEGER NOT NULL DEFAULT 0,
                 dedupe TEXT NOT NULL UNIQUE,
-                body TEXT NOT NULL DEFAULT ''
+                body TEXT NOT NULL DEFAULT '',
+                mode INTEGER NOT NULL DEFAULT 0,
+                bal INTEGER
             )"""
         )
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("DROP TABLE IF EXISTS txn")
-        onCreate(db)
+        if (oldVersion < 2) {
+            db.execSQL("DROP TABLE IF EXISTS txn")
+            onCreate(db)
+            return
+        }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE txn ADD COLUMN mode INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE txn ADD COLUMN bal INTEGER")
+            db.execSQL("UPDATE txn SET mode=1 WHERE dedupe LIKE 'm:%'")
+        }
     }
 
     // ----- writes -----
@@ -54,11 +71,12 @@ class Db(context: Context) : SQLiteOpenHelper(context.applicationContext, "kharc
             put("status", status)
             put("dedupe", key)
             put("body", body)
+            p.balancePaise?.let { put("bal", it) }
         }
         return writableDatabase.insertWithOnConflict("txn", null, v, SQLiteDatabase.CONFLICT_IGNORE)
     }
 
-    fun insertManual(type: TxType, paise: Long, party: String, cat: String, note: String, time: Long): Long {
+    fun insertManual(type: TxType, paise: Long, party: String, cat: String, note: String, time: Long, mode: Int = 1): Long {
         val v = ContentValues().apply {
             put("amount", paise)
             put("type", type.ordinal)
@@ -67,6 +85,7 @@ class Db(context: Context) : SQLiteOpenHelper(context.applicationContext, "kharc
             put("note", note)
             put("time", time)
             put("status", 1)
+            put("mode", mode)
             put("dedupe", "m:${System.nanoTime()}")
         }
         return writableDatabase.insert("txn", null, v)
@@ -81,12 +100,13 @@ class Db(context: Context) : SQLiteOpenHelper(context.applicationContext, "kharc
         writableDatabase.update("txn", v, "id=?", arrayOf(id.toString()))
     }
 
-    fun update(id: Long, paise: Long, party: String, category: String, note: String) {
+    fun update(id: Long, paise: Long, party: String, category: String, note: String, mode: Int = 0) {
         val v = ContentValues().apply {
             put("amount", paise)
             put("party", party)
             put("category", category)
             put("note", note)
+            put("mode", mode)
             put("status", 1)
         }
         writableDatabase.update("txn", v, "id=?", arrayOf(id.toString()))
@@ -149,7 +169,7 @@ class Db(context: Context) : SQLiteOpenHelper(context.applicationContext, "kharc
         var out = 0L
         var inn = 0L
         readableDatabase.rawQuery(
-            "SELECT type, SUM(amount) FROM txn WHERE status=1 AND time>=? AND time<? GROUP BY type",
+            "SELECT type, SUM(amount) FROM txn WHERE status=1 AND category<>'atm' AND time>=? AND time<? GROUP BY type",
             arrayOf(from.toString(), to.toString())
         ).use {
             while (it.moveToNext()) {
@@ -159,16 +179,48 @@ class Db(context: Context) : SQLiteOpenHelper(context.applicationContext, "kharc
         return out to inn
     }
 
+    fun flows(from: Long, to: Long): Flow {
+        var bIn = 0L; var bOut = 0L; var cIn = 0L; var cOut = 0L; var atm = 0L
+        readableDatabase.rawQuery(
+            "SELECT mode, type, (category='atm'), SUM(amount) FROM txn WHERE status=1 AND time>=? AND time<? " +
+                "GROUP BY mode, type, (category='atm')",
+            arrayOf(from.toString(), to.toString())
+        ).use {
+            while (it.moveToNext()) {
+                val m = it.getInt(0)
+                val credit = it.getInt(1) == TxType.CREDIT.ordinal
+                val isAtm = it.getInt(2) == 1
+                val sum = it.getLong(3)
+                if (credit) {
+                    if (m == 0) bIn += sum else cIn += sum
+                } else if (m == 0) {
+                    bOut += sum
+                    if (isAtm) { cIn += sum; atm += sum }
+                } else {
+                    cOut += sum
+                }
+            }
+        }
+        return Flow(bIn, bOut, cIn, cOut, atm)
+    }
+
+    /** (balance in paise, time) from the latest bank SMS before [to] that carried a balance. */
+    fun lastBalanceBefore(to: Long): Pair<Long, Long>? =
+        readableDatabase.rawQuery(
+            "SELECT bal, time FROM txn WHERE bal IS NOT NULL AND time<? ORDER BY time DESC LIMIT 1",
+            arrayOf(to.toString())
+        ).use { if (it.moveToFirst()) it.getLong(0) to it.getLong(1) else null }
+
     fun byCategory(from: Long, to: Long, type: TxType): List<Pair<String, Long>> =
         readableDatabase.rawQuery(
-            "SELECT category, SUM(amount) FROM txn WHERE status=1 AND type=? AND time>=? AND time<? " +
+            "SELECT category, SUM(amount) FROM txn WHERE status=1 AND category<>'atm' AND type=? AND time>=? AND time<? " +
                 "GROUP BY category ORDER BY SUM(amount) DESC",
             arrayOf(type.ordinal.toString(), from.toString(), to.toString())
         ).use { c -> buildList { while (c.moveToNext()) add(c.getString(0) to c.getLong(1)) } }
 
     fun topParties(from: Long, to: Long, type: TxType, limit: Int): List<Pair<String, Long>> =
         readableDatabase.rawQuery(
-            "SELECT party, SUM(amount) FROM txn WHERE status=1 AND type=? AND party<>'' AND time>=? AND time<? " +
+            "SELECT party, SUM(amount) FROM txn WHERE status=1 AND category<>'atm' AND type=? AND party<>'' AND time>=? AND time<? " +
                 "GROUP BY lower(party) ORDER BY SUM(amount) DESC LIMIT $limit",
             arrayOf(type.ordinal.toString(), from.toString(), to.toString())
         ).use { c -> buildList { while (c.moveToNext()) add(c.getString(0) to c.getLong(1)) } }
@@ -225,10 +277,10 @@ class Db(context: Context) : SQLiteOpenHelper(context.applicationContext, "kharc
     private fun Cursor.toTxn() = Txn(
         id = getLong(0), amountPaise = getLong(1), type = TxType.values()[getInt(2)],
         party = getString(3), category = getString(4), note = getString(5),
-        time = getLong(6), status = getInt(7),
+        time = getLong(6), status = getInt(7), mode = getInt(8),
     )
 
     private companion object {
-        const val COLS = "id, amount, type, party, category, note, time, status"
+        const val COLS = "id, amount, type, party, category, note, time, status, mode"
     }
 }

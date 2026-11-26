@@ -102,4 +102,12 @@ class SmsParserTest {
     @Test fun doctorNameIsNotDebit() {
         assertNull(SmsParser.parse("Dr. Sharma clinic appointment Rs.500 tomorrow"))
     }
+
+    @Test fun readsBalance() {
+        val p = SmsParser.parse("Rs.500.00 Dr. from A/C XXXXXX2106 and Cr. to googleads.hypg@yespay. Ref:347333499804. AvlBal:Rs774.75(2026:11:18 04:53:46). Not you? Call 18005700/5000-BOB")!!
+        assertEquals(77475L, p.balancePaise)
+        val q = SmsParser.parse("Rs.40 debited from A/c XX1234 to VPA a@ybl (UPI Ref No 123456789012). Avl Bal Rs 9,000.00")!!
+        assertEquals(900000L, q.balancePaise)
+        assertNull(SmsParser.parse("Rs.40 debited from A/c XX1234 to VPA a@ybl (UPI Ref No 123456789012)")!!.balancePaise)
+    }
 }

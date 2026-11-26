@@ -198,7 +198,7 @@ private fun MainActivity.entryRow(t: Txn): View {
         setSingleLine(); ellipsize = android.text.TextUtils.TruncateAt.END
     })
     val sub = if (t.status == 0) tr("जवाब दो — टैप करो", "Tap to answer")
-    else (cat?.name2 ?: "") + (if (t.note.isNotBlank()) " · ${t.note}" else "") + " · " + timeLabel(t.time)
+    else (if (t.mode == 1) "💵 " else "") + (cat?.name2 ?: "") + (if (t.note.isNotBlank()) " · ${t.note}" else "") + " · " + timeLabel(t.time)
     mid.addView(label(sub, 12f, if (t.status == 0) C.AMBER else C.SUB).apply {
         setSingleLine(); ellipsize = android.text.TextUtils.TruncateAt.END
     })
@@ -215,6 +215,7 @@ private fun MainActivity.entryRow(t: Txn): View {
 fun MainActivity.showEntryDialog(t: Txn?) {
     var type = t?.type ?: TxType.DEBIT
     var sel: Cat? = t?.let { Cat.byKey(it.category) }
+    var mode = t?.mode ?: 1
 
     val box = vertical().apply { setPadding(dp(20), dp(16), dp(20), dp(8)) }
     box.addView(label(if (t == null) tr("नई एंट्री (नकद / अन्य)", "New entry (cash / other)") else tr("एंट्री बदलो", "Edit entry"),
@@ -244,6 +245,17 @@ fun MainActivity.showEntryDialog(t: Txn?) {
         paintToggle()
         box.addView(toggle, lp(MATCH, WRAP, b = dp(8)))
     }
+
+    val modeRow = horizontal()
+    fun paintMode() {
+        modeRow.removeAllViews()
+        modeRow.addView(chip("💵 " + tr("नकद", "Cash"), if (mode == 1) C.PRIMARY else C.CHIP,
+            if (mode == 1) 0xFFFFFFFF.toInt() else C.SUB) { mode = 1; paintMode() }, lp(0, WRAP, 1f, r = dp(6)))
+        modeRow.addView(chip("🏦 Bank/UPI", if (mode == 0) C.PRIMARY else C.CHIP,
+            if (mode == 0) 0xFFFFFFFF.toInt() else C.SUB) { mode = 0; paintMode() }, lp(0, WRAP, 1f, l = dp(6)))
+    }
+    paintMode()
+    box.addView(modeRow, lp(MATCH, WRAP, b = dp(8)))
 
     val amount = EditText(this).apply {
         inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
@@ -289,8 +301,8 @@ fun MainActivity.showEntryDialog(t: Txn?) {
         }
         val paise = Math.round(v * 100)
         val cat = (sel ?: Cat.other(type)).key
-        if (t == null) db.insertManual(type, paise, party.text.toString().trim(), cat, note.text.toString().trim(), System.currentTimeMillis())
-        else db.update(t.id, paise, party.text.toString().trim(), cat, note.text.toString().trim())
+        if (t == null) db.insertManual(type, paise, party.text.toString().trim(), cat, note.text.toString().trim(), System.currentTimeMillis(), mode)
+        else db.update(t.id, paise, party.text.toString().trim(), cat, note.text.toString().trim(), mode)
         dialog.dismiss(); render()
     }
     if (t != null) {
@@ -319,6 +331,7 @@ fun MainActivity.buildReports(): View {
     top.addView(label(tr("रिपोर्ट", "Reports"), 22f, C.TEXT, true), lp(0, WRAP, 1f))
     top.addView(monthSwitcher(C.PRIMARY) { render() })
     col.addView(top, lp(MATCH, WRAP, b = dp(12)))
+    col.addView(balanceSheetCard(from, to), lp(MATCH, WRAP, b = dp(14)))
 
     val toggle = horizontal()
     toggle.addView(chip(tr("↑ खर्च", "↑ Spent"), if (!reportIn) C.RED else C.CARD, if (!reportIn) 0xFFFFFFFF.toInt() else C.SUB) {
@@ -624,5 +637,143 @@ private fun MainActivity.openFullScreenSettings() {
         startActivity(Intent("android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT", Uri.parse("package:$packageName")))
     } catch (e: Exception) {
         openAppSettings()
+    }
+}
+
+
+// =====================================================================
+// BALANCE SHEET
+// =====================================================================
+
+private fun signedRupees(v: Long?): String = when {
+    v == null -> "—"
+    v < 0 -> "−" + formatRupees(-v)
+    else -> formatRupees(v)
+}
+
+private fun MainActivity.balanceSheetCard(from: Long, to: Long): View {
+    val f = db.flows(from, to)
+    val o = Opening.get(this)
+    val before = if (from >= o.from) db.flows(o.from, from) else null
+    val ob = before?.let { o.bank + it.bankIn - it.bankOut }
+    val oc = before?.let { o.cash + it.cashIn - it.cashOut }
+    val ot = if (ob != null && oc != null) ob + oc else null
+    val cb = ob?.let { it + f.bankIn - f.bankOut }
+    val cc = oc?.let { it + f.cashIn - f.cashOut }
+    val ct = if (cb != null && cc != null) cb + cc else null
+
+    val card = card()
+    card.addView(label("📒 " + tr("बैलेंस शीट", "Balance sheet") + " — " + monthLabel(monthOffset), 16f, C.TEXT, true))
+
+    fun row(name: String, a: Long?, b: Long?, c: Long?, color: Int, bold: Boolean = false, top: Boolean = false): View {
+        val r = horizontal().apply { setPadding(0, dp(7), 0, dp(7)) }
+        if (top) r.background = android.graphics.drawable.GradientDrawable().apply { setStroke(dp(1), C.LINE) }
+        r.addView(label(name, 12.5f, color, bold), lp(0, WRAP, 1.35f))
+        for (v in listOf(a, b, c)) {
+            r.addView(label(signedRupees(v), 12.5f, color, bold).apply { gravity = Gravity.END }, lp(0, WRAP, 1f))
+        }
+        return r
+    }
+
+    card.addView(row("", null, null, null, C.SUB).also {
+        (it as LinearLayout).removeAllViews()
+        it.addView(label("", 12f), lp(0, WRAP, 1.35f))
+        for (h in listOf("🏦 Bank", "💵 " + tr("नकद", "Cash"), tr("कुल", "Total"))) {
+            it.addView(label(h, 12f, C.SUB, true).apply { gravity = Gravity.END }, lp(0, WRAP, 1f))
+        }
+    }, lp(MATCH, WRAP, t = dp(6)))
+    card.addView(row(tr("शुरुआत में", "Opening"), ob, oc, ot, C.SUB))
+    card.addView(row("＋ " + tr("आए", "Came in"), f.bankIn, f.cashIn, f.inReal, C.GREEN))
+    card.addView(row("－ " + tr("गए", "Went out"), f.bankOut, f.cashOut, f.outReal, C.RED))
+    card.addView(row("＝ " + tr("बचना चाहिए", "Should be left"), cb, cc, ct, C.TEXT, bold = true, top = true))
+
+    if (f.atm > 0) {
+        card.addView(label(tr("🏧 ATM से ${formatRupees(f.atm)} निकाले: Bank के \"गए\" और नकद के \"आए\" में गिना है, कुल खर्च में नहीं।",
+            "🏧 ATM withdrawals ${formatRupees(f.atm)}: counted as Bank out and Cash in, not as spending."), 11f, C.SUB), lp(WRAP, WRAP, t = dp(4)))
+    }
+
+    // Reality check against the balance printed in bank SMS
+    val last = db.lastBalanceBefore(to)
+    if (!o.isSet) {
+        card.addView(label(tr("⚠️ शुरुआती बैलेंस अभी नहीं डाला, इसलिए \"बचना चाहिए\" पूरा सही नहीं है।",
+            "⚠️ Opening balance not set yet, so \"Should be left\" is incomplete."), 12f, C.AMBER, true), lp(WRAP, WRAP, t = dp(8)))
+    } else if (last != null && cb != null) {
+        val diff = last.first - cb
+        val fmt = SimpleDateFormat("d MMM, h:mm a", L.locale)
+        card.addView(label(tr("असली Bank बैलेंस (आख़िरी SMS, ${fmt.format(Date(last.second))}): ${formatRupees(last.first)}",
+            "Actual bank balance (last SMS, ${fmt.format(Date(last.second))}): ${formatRupees(last.first)}"), 12f, C.TEXT, true),
+            lp(WRAP, WRAP, t = dp(8)))
+        if (abs(diff) < 100) {
+            card.addView(label(tr("✅ हिसाब मिल गया", "✅ Books match the bank"), 13f, C.GREEN, true), lp(WRAP, WRAP, t = dp(2)))
+        } else {
+            card.addView(label(
+                tr("⚠️ ${signedRupees(diff)} का फ़र्क: कोई पेमेंट छूटा है, कोई एंट्री \"skip\" हुई है, या नकद/ATM सही नहीं डाला।",
+                    "⚠️ Difference ${signedRupees(diff)}: a payment may be missing, skipped, or cash/ATM entered wrongly."),
+                12f, C.AMBER, true
+            ), lp(WRAP, WRAP, t = dp(2)))
+        }
+    }
+
+    val btns = horizontal()
+    btns.addView(chip("✏️ " + tr("शुरुआती बैलेंस", "Opening balance"), C.CHIP, C.TEXT) { showOpeningDialog(from) }, lp(WRAP, WRAP, r = dp(8)))
+    btns.addView(chip("📤 " + tr("शेयर", "Share"), C.CHIP, C.TEXT) {
+        val sb = StringBuilder()
+        sb.append("Kharcha — ").append(monthLabel(monthOffset)).append("\n\n")
+        sb.append("Bank: ").append(tr("शुरुआत", "Opening")).append(" ").append(signedRupees(ob))
+            .append("  + ").append(formatRupees(f.bankIn)).append("  − ").append(formatRupees(f.bankOut))
+            .append("  = ").append(signedRupees(cb)).append("\n")
+        sb.append(tr("नकद", "Cash")).append(": ").append(tr("शुरुआत", "Opening")).append(" ").append(signedRupees(oc))
+            .append("  + ").append(formatRupees(f.cashIn)).append("  − ").append(formatRupees(f.cashOut))
+            .append("  = ").append(signedRupees(cc)).append("\n\n")
+        sb.append(tr("कुल आए", "Total in")).append(": ").append(formatRupees(f.inReal)).append("\n")
+        sb.append(tr("कुल गए", "Total out")).append(": ").append(formatRupees(f.outReal)).append("\n")
+        sb.append(tr("बचना चाहिए", "Should be left")).append(": ").append(signedRupees(ct)).append("\n")
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, sb.toString())
+        }
+        startActivity(Intent.createChooser(send, tr("बैलेंस शीट भेजो", "Share balance sheet")))
+    }, lp(WRAP, WRAP))
+    card.addView(btns, lp(WRAP, WRAP, t = dp(10)))
+    return card
+}
+
+private fun MainActivity.showOpeningDialog(from: Long) {
+    val o = Opening.get(this)
+    val last = db.lastBalanceBefore(Long.MAX_VALUE)
+    val guess = if (last != null && last.second >= from) {
+        val f = db.flows(from, last.second + 1)
+        last.first - (f.bankIn - f.bankOut)
+    } else null
+
+    val box = vertical().apply { setPadding(dp(20), dp(16), dp(20), dp(8)) }
+    box.addView(label(tr("शुरुआती बैलेंस", "Opening balance") + " — " + monthLabel(monthOffset), 17f, C.TEXT, true))
+    box.addView(label(tr("इस महीने की 1 तारीख़ को आपके पास कितना था?", "How much did you have on the 1st of this month?"),
+        12f, C.SUB), lp(WRAP, WRAP, t = dp(4), b = dp(8)))
+
+    fun money(hintText: String, v: Long?) = EditText(this).apply {
+        inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
+        hint = hintText
+        if (v != null) setText(String.format(Locale.US, "%.2f", v / 100.0))
+    }
+    val bank = money("🏦 Bank ₹", if (o.isSet) o.bank else guess)
+    val cash = money("💵 " + tr("नकद ₹", "Cash ₹"), if (o.isSet) o.cash else null)
+    box.addView(bank)
+    box.addView(cash)
+    if (!o.isSet && guess != null) {
+        box.addView(label(tr("Bank का आँकड़ा आख़िरी SMS के बैलेंस से निकाला गया अंदाज़ा है। ठीक न लगे तो बदल दो।",
+            "Bank figure is estimated from your last SMS balance. Edit if wrong."), 11f, C.SUB), lp(WRAP, WRAP, t = dp(6)))
+    }
+
+    val dialog = AlertDialog.Builder(this)
+        .setView(box)
+        .setPositiveButton(tr("सेव", "Save"), null)
+        .setNegativeButton(tr("रद्द", "Cancel"), null)
+        .create()
+    dialog.show()
+    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+        fun paise(e: EditText) = Math.round((e.text.toString().toDoubleOrNull() ?: 0.0) * 100)
+        Opening.set(this, paise(bank), paise(cash), from)
+        dialog.dismiss(); render()
     }
 }
